@@ -1,6 +1,6 @@
 # Hippocampal Memory
 
-### A provenance-aware cognitive memory architecture for autonomous agents
+### Provenance-aware temporal cognition, GPU replay, and an observable 3-D memory system
 
 Hippocampal Memory is a standalone, local-first memory system that treats
 remembering as a governed lifecycle rather than a vector lookup. It records
