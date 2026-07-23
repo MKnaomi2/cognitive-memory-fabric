@@ -22,6 +22,7 @@ def test_circuit_bounds_fail_closed() -> None:
 
 
 def test_time_cells_encode_sequence_and_context() -> None:
+    pytest.importorskip("torch", reason="neural extra is optional")
     config = replace(
         CircuitConfig(),
         populations={"EC": 128, "DG": 256, "CA3": 128, "CA1": 64},
