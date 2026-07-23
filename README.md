@@ -1,8 +1,8 @@
-# Hippocampal Memory
+# Cognitive Memory Fabric
 
-### Provenance-aware temporal cognition, GPU replay, and an observable 3-D memory system
+### Provenance-aware agent memory with an observable hippocampal replay engine
 
-Hippocampal Memory is a standalone, local-first memory system that treats
+Cognitive Memory Fabric is a standalone, local-first agent memory platform that treats
 remembering as a governed lifecycle rather than a vector lookup. It records
 where knowledge came from, changes confidence as evidence accumulates, preserves
 contradictions, archives obsolete knowledge before deletion, consolidates
@@ -14,7 +14,8 @@ monitoring, autobiographical recollection metadata, event segmentation,
 context reinstatement, guarded reconsolidation, and simulated EC/CA1 time-cell
 sequences.
 
-The package combines five cooperating systems:
+Those capabilities form one governed memory fabric with five cooperating
+subsystems:
 
 - an authoritative SQLite lifecycle store;
 - an append-only event and synchronization ledger;
@@ -26,10 +27,25 @@ It is independent of Hermes Agent. A thin optional plugin gives Hermes nine
 native memory tools without moving the lifecycle implementation into the Hermes
 repository.
 
-> **Maturity:** version 0.3.0 is an alpha research system. Its lifecycle,
+> **Maturity:** version 0.4.0 is an alpha research system. Its lifecycle,
 > migration, replay, and observability contracts are tested, but the neural
-> circuit is an engineering model inspired by hippocampal organization—not a
-> claim of biological equivalence.
+> subsystem—the **Hippocampal Replay Engine**—is an engineering model inspired
+> by hippocampal organization, not a claim of anatomical or biological
+> equivalence.
+
+## Naming and scope
+
+The product is called **Cognitive Memory Fabric** because its primary contract
+is end-to-end agent memory: provenance, evidence, temporal cognition,
+consolidation, reversible forgetting, durable projections, and retrieval. The
+hippocampal-inspired spiking circuit is a specialized replay and observability
+subsystem, not the identity of the entire platform.
+
+The Python import namespace remains `hippocampal_memory` for compatibility.
+The primary command is `cognitive-memory`; the former `hippocampal-memory`
+command, the `HIPPOCAMPAL_MEMORY_HOME` environment variable, `.hippocampal-memory`
+state directories, and existing `hippocampal_*` Hermes tool identifiers are
+retained as compatibility interfaces during the transition.
 
 ## System at a glance
 
@@ -172,7 +188,7 @@ clusters at distant zoom. It supports:
 Run the telemetry service and viewer:
 
 ```powershell
-.\.venv-neural\Scripts\hippocampal-memory observatory
+.\.venv-neural\Scripts\cognitive-memory observatory
 Set-Location viewer
 npm ci
 npm run dev
@@ -206,7 +222,7 @@ python -m venv .venv-neural
 Validate the production circuit contract:
 
 ```powershell
-.\.venv-neural\Scripts\hippocampal-memory circuit-check --device cuda
+.\.venv-neural\Scripts\cognitive-memory circuit-check --device cuda
 ```
 
 See [Operations](docs/OPERATIONS.md) for the complete CLI, Windows scheduled
@@ -245,8 +261,8 @@ default, capped at 25 writes, protected by pre-write hashes, applied through
 atomic replacement, and recorded in rollback journals.
 
 ```powershell
-hippocampal-memory vault-plan --vault C:\Hermes\Knowledge
-hippocampal-memory vault-sync --vault C:\Hermes\Knowledge --limit 25 --apply
+cognitive-memory vault-plan --vault C:\Hermes\Knowledge
+cognitive-memory vault-sync --vault C:\Hermes\Knowledge --limit 25 --apply
 ```
 
 The Hermes adapter registers:

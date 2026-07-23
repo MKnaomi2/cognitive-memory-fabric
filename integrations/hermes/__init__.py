@@ -1,4 +1,4 @@
-"""Thin Hermes tool adapter for the standalone hippocampal-memory package."""
+"""Thin Hermes tool adapter for the standalone Cognitive Memory Fabric."""
 
 from __future__ import annotations
 
@@ -9,7 +9,13 @@ from pathlib import Path
 from typing import Any
 
 _REPO = Path(
-    os.environ.get("HIPPOCAMPAL_MEMORY_REPO", r"C:\Hermes\hippocampal-memory")
+    os.environ.get(
+        "COGNITIVE_MEMORY_FABRIC_REPO",
+        os.environ.get(
+            "HIPPOCAMPAL_MEMORY_REPO",
+            r"C:\Hermes\cognitive-memory-fabric",
+        ),
+    )
 ).resolve()
 _SOURCE = _REPO / "src"
 if str(_SOURCE) not in sys.path:

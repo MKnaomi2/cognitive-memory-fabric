@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 — 2026-07-23
+
+### Cognitive Memory Fabric rebrand
+
+- Renamed the product and distribution to Cognitive Memory Fabric so the public
+  identity describes the complete agent-memory platform rather than one neural
+  subsystem.
+- Named the spiking neural subsystem the Hippocampal Replay Engine and clarified
+  that it is an engineering abstraction rather than a claim of biological
+  equivalence.
+- Added the primary `cognitive-memory` CLI while retaining the former command,
+  Python import namespace, state directories, environment variable, and Hermes
+  tool identifiers as compatibility interfaces.
+- Updated repository paths, Hermes metadata, Obsidian display metadata, viewer
+  metadata, operations guidance, and public positioning.
+
 ## 0.3.0 — 2026-07-23
 
 ### Cognitive temporal memory

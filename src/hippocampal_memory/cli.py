@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import warnings
 from pathlib import Path
 
 from .circuit import TrisynapticCircuit
@@ -15,8 +16,8 @@ from .telemetry import RemoteTelemetry, create_app, observatory_token, serve
 from .vault import VaultSynchronizer
 
 
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="hippocampal-memory")
+def _parser(*, prog: str = "cognitive-memory") -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog)
     parser.add_argument("--home", type=Path)
     parser.add_argument("--state-db", type=Path)
     parser.add_argument("--model", default=DEFAULT_MODEL)
@@ -70,8 +71,12 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+def main(
+    argv: list[str] | None = None,
+    *,
+    prog: str = "cognitive-memory",
+) -> int:
+    args = _parser(prog=prog).parse_args(argv)
     engine = HippocampusEngine(
         home=args.home,
         state_db=args.state_db,
@@ -190,6 +195,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if result.get("status") == "failed" else 0
     finally:
         engine.close()
+
+
+def legacy_main(argv: list[str] | None = None) -> int:
+    """Compatibility entry point for the pre-rebrand command."""
+    warnings.warn(
+        "'hippocampal-memory' is deprecated; use 'cognitive-memory'.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return main(argv, prog="hippocampal-memory")
 
 
 if __name__ == "__main__":

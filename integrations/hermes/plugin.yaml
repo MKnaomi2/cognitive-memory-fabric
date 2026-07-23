@@ -1,6 +1,6 @@
-name: hippocampal-memory
-version: 0.3.0
-description: "Temporal and autobiographical cognitive memory with source monitoring, event segmentation, context reinstatement, reconsolidation, Obsidian projection, and neural time cells."
+name: cognitive-memory-fabric
+version: 0.4.0
+description: "A governed agent memory fabric with provenance, temporal cognition, evidence-aware belief revision, reversible forgetting, Obsidian projection, and hippocampal-inspired neural replay."
 author: MKnaomi2
 kind: backend
 provides_tools:

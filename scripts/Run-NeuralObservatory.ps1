@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Repository = 'C:\Hermes\hippocampal-memory',
+    [string]$Repository = 'C:\Hermes\cognitive-memory-fabric',
     [string]$HermesHome = "$env:LOCALAPPDATA\hermes",
     [string]$RecordingsRoot = 'D:\HermesMemory\neural\recordings'
 )
