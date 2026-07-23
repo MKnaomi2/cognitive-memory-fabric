@@ -1,0 +1,11 @@
+name: hippocampal-memory
+version: 0.2.0
+description: "Provenance-aware memory lifecycle, Obsidian projection, evidence, conflicts, and neural observatory controls."
+author: MKnaomi2
+kind: backend
+provides_tools:
+  - hippocampal_remember
+  - hippocampal_query
+  - hippocampal_evidence
+  - hippocampal_archive
+  - hippocampal_vault_sync

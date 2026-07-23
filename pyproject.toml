@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hippocampal-memory"
-version = "0.1.0"
+version = "0.2.0"
 description = "Provenance-aware memory replay, consolidation, confidence, conflict detection, and reversible forgetting"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +24,14 @@ classifiers = [
 [project.optional-dependencies]
 holographic = ["numpy>=1.26"]
 hermes = ["pyyaml>=6"]
+obsidian = ["pyyaml>=6"]
+neural = ["torch>=2.12,<2.13"]
+observatory = [
+  "fastapi>=0.115",
+  "msgpack>=1.1",
+  "uvicorn>=0.34",
+  "websockets>=15",
+]
 dev = ["pytest>=8", "ruff>=0.11"]
 
 [project.scripts]
