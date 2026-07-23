@@ -75,7 +75,7 @@ downstream task: it replays accepted memories but does not ingest transcripts.
 ## Default Windows paths
 
 ```text
-Repository          C:\Hermes\hippocampal-memory
+Repository          C:\Hermes\cognitive-memory-fabric
 Hermes home         %LOCALAPPDATA%\hermes
 State database      %LOCALAPPDATA%\hermes\state.db
 Obsidian vault      C:\Hermes\Knowledge
@@ -96,7 +96,7 @@ All runner paths are parameters and can be changed.
 .\.venv-neural\Scripts\python -m compileall -q src integrations
 
 # Actual circuit contract
-.\.venv-neural\Scripts\hippocampal-memory circuit-check --device cuda
+.\.venv-neural\Scripts\cognitive-memory circuit-check --device cuda
 
 # Viewer
 Set-Location viewer

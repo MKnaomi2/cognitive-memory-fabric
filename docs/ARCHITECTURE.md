@@ -2,7 +2,7 @@
 
 ## Design objective
 
-Hippocampal Memory separates factual lifecycle truth, human-readable knowledge,
+Cognitive Memory Fabric separates factual lifecycle truth, human-readable knowledge,
 and neural replay state. No projection is allowed to silently become the
 authority for another.
 

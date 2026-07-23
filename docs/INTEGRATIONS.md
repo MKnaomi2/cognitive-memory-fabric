@@ -110,6 +110,11 @@ and enable `hermes-neural-observatory` in the vault's community plugin list.
 `integrations/hermes/` is deliberately thin. It imports the standalone package
 and registers nine tools:
 
+The `hippocampal_*` identifiers below are retained compatibility interfaces
+from the project's former name. They operate on the Cognitive Memory Fabric;
+the name does not imply that the lifecycle, evidence, vault, or temporal
+cognition features belong to the neural replay subsystem.
+
 | Tool | Operation |
 |---|---|
 | `hippocampal_remember` | create/reobserve a memory with type, provenance, confidence, and optional subject/predicate/validity data |

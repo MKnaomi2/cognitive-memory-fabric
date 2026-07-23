@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$TaskName = 'Hermes_Neural_Observatory',
-    [string]$Repository = 'C:\Hermes\hippocampal-memory',
+    [string]$Repository = 'C:\Hermes\cognitive-memory-fabric',
     [switch]$Enable
 )
 

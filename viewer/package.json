@@ -1,7 +1,7 @@
 {
-  "name": "hermes-neural-observatory",
+  "name": "cognitive-memory-fabric-observatory",
   "version": "0.2.0",
-  "description": "Loopback WebGPU/WebGL observatory for live and recorded hippocampal memory consolidation",
+  "description": "Loopback WebGPU/WebGL observatory for the Cognitive Memory Fabric hippocampal replay engine",
   "private": true,
   "engines": {
     "node": ">=22.13.0"

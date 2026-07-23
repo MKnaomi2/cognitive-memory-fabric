@@ -1,6 +1,7 @@
 # Hermes Neural Observatory
 
-Local, read-only WebGPU/WebGL visualization for the hippocampal memory circuit.
+Local, read-only WebGPU/WebGL visualization for Cognitive Memory Fabric's
+Hippocampal Replay Engine.
 It renders the EC→DG→CA3→CA1 topology, live MessagePack telemetry, provenance
 inspection, and recorded `.hmrec` sleep replay.
 
