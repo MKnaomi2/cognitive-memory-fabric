@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .coordination import MemoryCoordinator
+from .cognition import CognitiveMemorySystem
 from .store import MemoryStore
 
 MANAGED_START = "<!-- hippocampal:managed:start -->"
@@ -126,8 +127,25 @@ class VaultProjector:
             "source_uri": provenance.get("source_uri", ""),
             "valid_from": memory.get("valid_from"),
             "valid_until": memory.get("valid_until"),
+            "context_id": memory.get("context_id") or "",
+            "event_id": memory.get("event_id") or "",
+            "sequence_index": memory.get("sequence_index"),
+            "event_start_at": memory.get("event_start_at"),
+            "event_end_at": memory.get("event_end_at"),
+            "temporal_uncertainty_seconds": memory.get(
+                "temporal_uncertainty_seconds", 0
+            ),
+            "autobiographical": bool(memory.get("autobiographical", False)),
+            "self_relevance": round(float(memory.get("self_relevance", 0)), 6),
+            "perspective": memory.get("perspective", "unknown"),
+            "recollection_mode": memory.get("recollection_mode", "know"),
+            "vividness": round(float(memory.get("vividness", 0)), 6),
+            "source_memory_score": round(
+                float(memory.get("source_memory_score") or 0), 6
+            ),
             "superseded_by": memory.get("superseded_by"),
             "engram_id": memory.get("engram_id") or "",
+            "time_cell_count": int(memory.get("time_cell_count") or 0),
             "consolidation_state": (
                 "consolidated"
                 if memory.get("memory_kind") in {"principle", "identity"}
@@ -158,6 +176,19 @@ class VaultProjector:
             f"- Score: {float(memory.get('trust_score', 0.5)):.3f}\n"
             f"- Confirmations: {int(memory.get('confirmation_count', 0))}\n"
             f"- Contradictions: {int(memory.get('contradiction_count', 0))}\n\n"
+            f"## Temporal context\n\n"
+            f"- Context: {memory.get('context_id') or 'unbound'}\n"
+            f"- Event: {memory.get('event_id') or 'unsegmented'}\n"
+            f"- Sequence: {memory.get('sequence_index')}\n"
+            f"- Interval: {memory.get('event_start_at')} → "
+            f"{memory.get('event_end_at')}\n\n"
+            f"## Recollection\n\n"
+            f"- Autobiographical: {bool(memory.get('autobiographical', False))}\n"
+            f"- Mode: {memory.get('recollection_mode', 'know')}\n"
+            f"- Perspective: {memory.get('perspective', 'unknown')}\n"
+            f"- Vividness: {float(memory.get('vividness', 0)):.3f}\n"
+            f"- Source-monitoring score: "
+            f"{float(memory.get('source_memory_score') or 0):.3f}\n\n"
             f"## Relationships\n\n{relation}\n{MANAGED_END}\n"
         )
         result = f"---\n{frontmatter}\n---\n\n{managed}"
@@ -187,6 +218,7 @@ class VaultSynchronizer:
         self.store = store
         self.root = Path(vault_root).expanduser().resolve()
         self.coordinator = coordinator or MemoryCoordinator(store)
+        self.cognition = CognitiveMemorySystem(store, self.coordinator)
         self.projector = VaultProjector()
 
     def plan(self, memory_ids: Iterable[int] | None = None) -> list[VaultMutation]:
@@ -202,7 +234,14 @@ class VaultSynchronizer:
                 SELECT f.*,
                     (SELECT COUNT(*) FROM fact_evidence e
                      WHERE e.fact_id=f.fact_id) evidence_count,
-                    b.engram_id
+                    b.engram_id,
+                    (SELECT source_memory_score
+                     FROM source_monitoring_assessments s
+                     WHERE s.fact_id=f.fact_id
+                     ORDER BY assessed_at DESC LIMIT 1) source_memory_score,
+                    (SELECT json_array_length(cell_ids_json)
+                     FROM time_cell_bindings t
+                     WHERE t.memory_id=CAST(f.fact_id AS TEXT)) time_cell_count
                 FROM facts f LEFT JOIN engram_bindings b
                   ON b.memory_id=CAST(f.fact_id AS TEXT)
                 {where} ORDER BY f.fact_id

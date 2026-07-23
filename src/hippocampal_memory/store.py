@@ -301,6 +301,19 @@ class MemoryStore:
             "archive_reason": "TEXT DEFAULT ''",
             "review_after": "TIMESTAMP",
             "restored_at": "TIMESTAMP",
+            "context_id": "TEXT DEFAULT ''",
+            "event_id": "TEXT DEFAULT ''",
+            "sequence_index": "INTEGER",
+            "event_start_at": "TIMESTAMP",
+            "event_end_at": "TIMESTAMP",
+            "temporal_uncertainty_seconds": "REAL NOT NULL DEFAULT 0",
+            "autobiographical": "INTEGER NOT NULL DEFAULT 0",
+            "self_relevance": "REAL NOT NULL DEFAULT 0",
+            "perspective": "TEXT NOT NULL DEFAULT 'unknown'",
+            "recollection_mode": "TEXT NOT NULL DEFAULT 'know'",
+            "vividness": "REAL NOT NULL DEFAULT 0",
+            "last_reinstated_at": "TIMESTAMP",
+            "last_reconsolidated_at": "TIMESTAMP",
         }
         for name, declaration in migrations.items():
             if name not in columns:
@@ -313,6 +326,10 @@ class MemoryStore:
             CREATE INDEX IF NOT EXISTS idx_facts_subject_predicate
                 ON facts(subject_key, predicate_key);
             CREATE INDEX IF NOT EXISTS idx_facts_review_after ON facts(review_after);
+            CREATE INDEX IF NOT EXISTS idx_facts_context_sequence
+                ON facts(context_id, event_id, sequence_index);
+            CREATE INDEX IF NOT EXISTS idx_facts_event_time
+                ON facts(event_start_at, event_end_at);
             CREATE INDEX IF NOT EXISTS idx_hippocampus_sessions_status
                 ON hippocampus_sessions(status, eligible_at);
             INSERT OR IGNORE INTO hippocampus_control(key, value)
@@ -345,6 +362,17 @@ class MemoryStore:
         salience_score: float = 0.5,
         source_quality: float = 0.5,
         pinned: bool = False,
+        context_id: str = "",
+        event_id: str = "",
+        sequence_index: int | None = None,
+        event_start_at: str | None = None,
+        event_end_at: str | None = None,
+        temporal_uncertainty_seconds: float = 0.0,
+        autobiographical: bool = False,
+        self_relevance: float = 0.0,
+        perspective: str = "unknown",
+        recollection_mode: str = "know",
+        vividness: float = 0.0,
     ) -> int:
         """Insert a fact and return its fact_id.
 
@@ -375,9 +403,13 @@ class MemoryStore:
                         provenance_type, provenance_ref, provenance_json,
                         subject_key, predicate_key, valid_from, valid_until,
                         expires_at, relevance_score, salience_score,
-                        source_quality, pinned
+                        source_quality, pinned, context_id, event_id,
+                        sequence_index, event_start_at, event_end_at,
+                        temporal_uncertainty_seconds, autobiographical,
+                        self_relevance, perspective, recollection_mode, vividness
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         content,
@@ -397,6 +429,17 @@ class MemoryStore:
                         _clamp_trust(float(salience_score)),
                         _clamp_trust(float(source_quality)),
                         int(bool(pinned)),
+                        context_id.strip(),
+                        event_id.strip(),
+                        sequence_index,
+                        event_start_at or valid_from,
+                        event_end_at or event_start_at or valid_from,
+                        max(0.0, float(temporal_uncertainty_seconds)),
+                        int(bool(autobiographical)),
+                        _clamp_trust(float(self_relevance)),
+                        perspective.strip().lower() or "unknown",
+                        recollection_mode.strip().lower() or "know",
+                        _clamp_trust(float(vividness)),
                     ),
                 )
                 self._conn.commit()
@@ -712,12 +755,19 @@ class MemoryStore:
             raise ValueError("source_fact_ids must not be empty")
         with self._lock:
             placeholders = ",".join("?" * len(source_fact_ids))
-            count = self._conn.execute(
-                f"SELECT COUNT(*) FROM facts WHERE fact_id IN ({placeholders})",
+            sources = self._conn.execute(
+                f"SELECT fact_id,context_id,event_start_at,event_end_at "
+                f"FROM facts WHERE fact_id IN ({placeholders})",
                 source_fact_ids,
-            ).fetchone()[0]
-            if count != len(set(source_fact_ids)):
+            ).fetchall()
+            if len(sources) != len(set(source_fact_ids)):
                 raise KeyError("one or more source facts do not exist")
+            contexts = {
+                str(row["context_id"]) for row in sources if row["context_id"]
+            }
+            shared_context = next(iter(contexts)) if len(contexts) == 1 else ""
+            starts = [row["event_start_at"] for row in sources if row["event_start_at"]]
+            ends = [row["event_end_at"] for row in sources if row["event_end_at"]]
             fact_id = self.add_fact(
                 content,
                 category=category,
@@ -729,6 +779,13 @@ class MemoryStore:
                     "operation": "consolidation",
                     "source_fact_ids": source_fact_ids,
                 },
+                context_id=shared_context,
+                event_start_at=min(starts) if starts else None,
+                event_end_at=max(ends) if ends else None,
+                autobiographical=memory_kind == "identity",
+                self_relevance=1.0 if memory_kind == "identity" else 0.5,
+                perspective="semantic",
+                recollection_mode="inferred",
             )
             if archive_sources:
                 for source_id in source_fact_ids:
@@ -1070,7 +1127,11 @@ class MemoryStore:
                        retrieval_count, helpful_count, created_at, updated_at,
                        memory_kind, status, provenance_type, provenance_ref,
                        provenance_json, confirmation_count, contradiction_count,
-                       last_confirmed_at, archived_at
+                       last_confirmed_at, archived_at, context_id, event_id,
+                       sequence_index, event_start_at, event_end_at,
+                       temporal_uncertainty_seconds, autobiographical,
+                       self_relevance, perspective, recollection_mode, vividness,
+                       last_reinstated_at, last_reconsolidated_at
                 FROM facts
                 WHERE trust_score >= ?
                   {status_clause}

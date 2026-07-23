@@ -16,6 +16,9 @@ The core invariants are:
 6. Neural weights change only through local circuit rules.
 7. Vault writes are bounded, journaled, and safe against concurrent edits.
 8. The observatory can inspect lifecycle state but cannot mutate it.
+9. Temporal order is explicit rather than inferred from row insertion.
+10. Retrieval-induced lability is gated, time-bounded, and version-preserving.
+11. Operational self-recollection metadata never implies consciousness.
 
 ## Authority boundaries
 
@@ -77,6 +80,11 @@ journaling as fallback.
 | `hippocampus_runs` | replay-run accounting |
 | `memory_decisions` | accepted/rejected policy decisions and their reasons |
 | `hippocampus_control` | pause/control state |
+| `temporal_contexts`, `episodic_events`, `event_memories` | temporal context and event segmentation |
+| `temporal_bindings` | explicit order, elapsed time, and confidence |
+| `source_monitoring_assessments` | inspectable source-attribution evaluation |
+| `reconsolidation_windows`, `memory_versions` | guarded lability and before/after state |
+| `context_reinstatements` | audited context retrieval |
 
 The `facts` table is migrated in place to add lifecycle fields such as
 `memory_kind`, provenance, confirmation/contradiction counts, subject/predicate
@@ -92,6 +100,7 @@ keys, validity windows, relevance/salience/source quality, `pinned`,
 | `sync_ledger` | direction, revisions, before/after hashes, outcome, and detail |
 | `engram_bindings` | memory→engram identity, circuit version, neuron IDs, strength, replay count |
 | `neural_checkpoints` | circuit version, phase, path, SHA-256, event revision, and metadata |
+| `time_cell_bindings` | memory/context/sequence to simulated EC/CA1 temporal assembly |
 
 Event payloads use deterministic compact JSON before hashing. Events include
 actor type/reference, source URI, causation ID, correlation ID, UTC occurrence
@@ -151,6 +160,7 @@ Retrieval does not create truth. Evidence and policy change lifecycle state.
   previously applied mutations.
 - Neural recordings are authoritative when no live viewer is available.
 - GPU replay can stop between circuit steps when foreground work appears.
+- Time-cell sequences expose simulated elapsed phase and context remapping.
 - Malformed extraction output defers only the affected source session with a
   persisted retry time; it does not block later sessions.
 - Malformed abstraction output preserves completed ingestion and records a
@@ -163,3 +173,6 @@ viewer. Optional dependencies are split into `holographic`, `obsidian`,
 `neural`, `observatory`, `hermes`, and `dev` extras. A host agent needs only a
 compatible transcript source or direct calls to `MemoryStore` and
 `MemoryCoordinator`.
+
+See [Cognitive and temporal mechanisms](COGNITIVE_MECHANISMS.md) for behavioral
+contracts and biological boundaries.

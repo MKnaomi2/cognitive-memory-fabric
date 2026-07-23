@@ -32,6 +32,11 @@ Global options include `--home`, `--state-db`, `--model`, and `--ollama-url`.
 | `vault-sync --vault PATH --limit N [--apply]` | bounded projection |
 | `circuit-check --device cuda|cpu` | topology/propagation acceptance probe |
 | `sleep --state-root PATH --max-memories N` | one NREM→REM consolidation pass |
+| `cognitive-status` | context/event/source/reconsolidation/autobiography counts |
+| `cognitive-backfill --max-memories N` | idempotently enrich legacy memories |
+| `timeline --limit N` | ordered autobiographical memories |
+| `context [--memory-id N] [--cue TEXT]` | reinstate an episodic context |
+| `reactivate --memory-id N --cue TEXT ...` | evaluate reconsolidation boundaries |
 
 Always inspect a vault plan before `--apply`.
 
@@ -112,7 +117,9 @@ A complete live validation should additionally:
 4. confirm the viewer receives it;
 5. load an `.hmrec` file and scrub to its last frame;
 6. run the vault integrity audit; and
-7. perform a bounded sleep pass that writes both recording and hashed checkpoint.
+7. perform a bounded sleep pass that writes both recording and hashed checkpoint;
+8. confirm the recording contains active time cells and changing temporal phase;
+9. verify every migrated memory has context/event/order and source assessment.
 
 ## Recovery
 

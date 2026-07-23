@@ -50,8 +50,12 @@ class CircuitConfig:
     a_minus: float = 0.007
     weight_min: float = 0.0
     weight_max: float = 1.0
+    time_cell_fraction: float = 0.0625
+    time_cell_min_width: float = 0.025
+    time_cell_max_width: float = 0.080
+    time_cell_current: float = 1.15
     seed: int = 41
-    version: str = "trisynaptic-v1"
+    version: str = "trisynaptic-v2-time-cells"
 
     def validate(self) -> None:
         if set(self.populations) != {"EC", "DG", "CA3", "CA1"}:
@@ -64,6 +68,10 @@ class CircuitConfig:
             raise ValueError("invalid integration time constants")
         if not 0 <= self.weight_min < self.weight_max:
             raise ValueError("invalid weight bounds")
+        if not 0 < self.time_cell_fraction <= 0.25:
+            raise ValueError("time_cell_fraction must be in (0, 0.25]")
+        if not 0 < self.time_cell_min_width <= self.time_cell_max_width < 0.5:
+            raise ValueError("invalid time-cell receptive-field widths")
 
 
 @dataclass
@@ -120,6 +128,16 @@ class TrisynapticCircuit:
         self.step_index = 0
         self.pathways = self._build_pathways()
         self.positions = self._build_positions()
+        (
+            self.time_cell_ids,
+            self.time_cell_preferred_phase,
+            self.time_cell_width,
+        ) = self._build_time_cells()
+        self.time_cell_mask = torch.zeros(
+            self.neuron_count, dtype=torch.bool, device=self.device
+        )
+        self.time_cell_mask[self.time_cell_ids] = True
+        self.temporal_phase = 0.0
 
     def _range(self, region: str) -> tuple[int, int]:
         return self.offsets[region]
@@ -205,6 +223,61 @@ class TrisynapticCircuit:
             positions[start:end, 1] = center[1] + torch.sin(theta) * radius
             positions[start:end, 2] = center[2] + noise
         return positions
+
+    def _build_time_cells(self) -> tuple[Any, Any, Any]:
+        """Designate EC/CA1 cells with scalar temporal receptive fields."""
+        selected = []
+        preferred_by_region = []
+        for region in ("EC", "CA1"):
+            start, end = self._range(region)
+            count = max(16, int((end - start) * self.config.time_cell_fraction))
+            selected.append(
+                torch.linspace(start, end - 1, count, dtype=torch.long)
+            )
+            preferred_by_region.append(torch.linspace(0.0, 1.0, count))
+        ids = torch.cat(selected).to(self.device)
+        preferred = torch.cat(preferred_by_region).to(self.device)
+        widths = self.config.time_cell_min_width + preferred * (
+            self.config.time_cell_max_width - self.config.time_cell_min_width
+        )
+        return ids, preferred, widths
+
+    def temporal_current(
+        self, elapsed_step: int, total_steps: int, *, context_key: str = ""
+    ) -> Any:
+        """Generate a context-remapped sequence of time-cell activity."""
+        phase = max(0.0, min(1.0, elapsed_step / max(1, total_steps - 1)))
+        digest = hashlib.sha256(context_key.encode()).digest()
+        offset = int.from_bytes(digest[:4], "little") / (2**32)
+        remapped = (self.time_cell_preferred_phase + offset) % 1.0
+        distance = torch.abs(remapped - phase)
+        distance = torch.minimum(distance, 1.0 - distance)
+        drive = torch.exp(-0.5 * (distance / self.time_cell_width) ** 2)
+        current = torch.zeros(self.neuron_count, device=self.device)
+        current[self.time_cell_ids] = drive * self.config.time_cell_current
+        self.temporal_phase = phase
+        return current
+
+    def time_cell_assignment(self, key: str, count: int = 24) -> list[int]:
+        """Return the deterministic temporal assembly bound to one memory."""
+        digest = hashlib.sha256(key.encode()).digest()
+        center = int.from_bytes(digest[:4], "little") % self.time_cell_ids.numel()
+        half = max(1, min(int(count), self.time_cell_ids.numel())) // 2
+        indices = [
+            (center + delta) % self.time_cell_ids.numel()
+            for delta in range(-half, half + 1)
+        ]
+        return sorted(
+            {int(self.time_cell_ids[index].detach().cpu().item()) for index in indices}
+        )
+
+    def decode_elapsed_phase(self) -> float | None:
+        """Decode elapsed phase from the currently firing time-cell population."""
+        active = self.spikes[self.time_cell_ids].float()
+        if not bool(active.any()):
+            return None
+        value = (active * self.time_cell_preferred_phase).sum() / active.sum()
+        return round(float(value.detach().cpu().item()), 6)
 
     def step(
         self,
@@ -308,12 +381,16 @@ class TrisynapticCircuit:
             )
             for region, (start, end) in self.offsets.items()
         }
+        active_time_cells = active[self.time_cell_mask[active]]
         return {
             "schema": 1,
             "step": self.step_index,
             "active_neurons": active.detach().cpu().tolist(),
             "active_edges": edges[:edge_limit],
             "region_spikes": counts,
+            "time_cells_active": active_time_cells.detach().cpu().tolist(),
+            "temporal_phase": round(float(self.temporal_phase), 6),
+            "decoded_temporal_phase": self.decode_elapsed_phase(),
         }
 
     def stimulate_engram(
@@ -344,7 +421,7 @@ class TrisynapticCircuit:
                     "engram_neurons": sorted(peak),
                     "frames": frames,
                 }
-            current = torch.zeros(self.neuron_count, device=self.device)
+            current = self.temporal_current(index, steps, context_key=key)
             if index < 8 or index % 11 == 0:
                 current[selected] = 1.35
             frame = self.step(current, plastic=plastic)
@@ -354,6 +431,7 @@ class TrisynapticCircuit:
             "status": "completed",
             "steps": steps,
             "engram_neurons": sorted(peak),
+            "time_cell_neurons": self.time_cell_assignment(key),
             "frames": frames,
         }
 
@@ -363,6 +441,8 @@ class TrisynapticCircuit:
         *,
         phase: str = "nrem",
         cycles: int = 120,
+        context_key: str = "",
+        reconsolidating: bool = False,
         preempt: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         """Replay an engram with NREM ripple/spindle or REM integration timing."""
@@ -377,7 +457,14 @@ class TrisynapticCircuit:
         for index in range(cycles):
             if preempt and preempt():
                 return {"status": "preempted", "phase": phase, "frames": frames}
-            current = torch.zeros(self.neuron_count, device=self.device)
+            temporal_index = (
+                cycles - index - 1
+                if phase == "nrem" and (index // 25) % 2
+                else index
+            )
+            current = self.temporal_current(
+                temporal_index, cycles, context_key=context_key
+            )
             if cue.numel():
                 if phase == "nrem":
                     # Sharp-wave ripple packets nested in a slower spindle.
@@ -394,7 +481,11 @@ class TrisynapticCircuit:
                 self.step(
                     current,
                     plastic=True,
-                    neuromodulation=1.0 if phase == "nrem" else 0.55,
+                    neuromodulation=(
+                        (1.2 if phase == "nrem" else 0.70)
+                        if reconsolidating
+                        else (1.0 if phase == "nrem" else 0.55)
+                    ),
                 )
             )
         return {"status": "completed", "phase": phase, "frames": frames}
@@ -410,6 +501,9 @@ class TrisynapticCircuit:
             "voltage": self.voltage.detach().cpu(),
             "thresholds": self.thresholds.detach().cpu(),
             "rate_ema": self.rate_ema.detach().cpu(),
+            "time_cell_ids": self.time_cell_ids.detach().cpu(),
+            "time_cell_preferred_phase": self.time_cell_preferred_phase.detach().cpu(),
+            "time_cell_width": self.time_cell_width.detach().cpu(),
             "pathways": {
                 item.name: {
                     "pre": item.pre.detach().cpu(),
@@ -453,4 +547,12 @@ class TrisynapticCircuit:
                 }
                 for item in self.pathways
             ],
+            "time_cells": {
+                "ids": self.time_cell_ids.detach().cpu().tolist(),
+                "preferred_phase": self.time_cell_preferred_phase.detach()
+                .cpu()
+                .tolist(),
+                "width": self.time_cell_width.detach().cpu().tolist(),
+                "mechanism": "context-remapped scalar temporal receptive fields",
+            },
         }

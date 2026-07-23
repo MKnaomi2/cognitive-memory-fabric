@@ -4,12 +4,14 @@ from .replay import HippocampusEngine, ReplayConfig, ReplayPreempted
 from .retrieval import FactRetriever
 from .coordination import MemoryCoordinator, MemoryEvent, RevisionConflict
 from .circuit import CircuitConfig, TrisynapticCircuit
+from .cognition import CognitiveMemorySystem
 from .store import MemoryStore
 from .vault import VaultProjector, VaultSynchronizer
 
 __all__ = [
     "FactRetriever",
     "CircuitConfig",
+    "CognitiveMemorySystem",
     "HippocampusEngine",
     "MemoryCoordinator",
     "MemoryEvent",
@@ -22,4 +24,4 @@ __all__ = [
     "TrisynapticCircuit",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

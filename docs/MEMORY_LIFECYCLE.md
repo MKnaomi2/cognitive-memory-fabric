@@ -148,3 +148,14 @@ Replay and maintenance decisions record:
 
 This makes “why did the agent remember, reject, consolidate, supersede, or
 archive this?” answerable without exposing hidden model reasoning.
+
+## Temporal and reconstructive lifecycle
+
+New or enriched episodic memories are assigned to a temporal context, segmented
+event, and explicit sequence position. Source monitoring produces a separate
+assessment without replacing provenance. Context reinstatement is audited.
+
+Retrieval opens a reconsolidation window only when prediction-error and
+duration boundary conditions pass. Baseline and restabilized states are hashed
+in `memory_versions`; only cited evidence and bounded contextual fields can be
+integrated. See [Cognitive mechanisms](COGNITIVE_MECHANISMS.md).

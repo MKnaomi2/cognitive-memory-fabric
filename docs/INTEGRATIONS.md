@@ -108,7 +108,7 @@ and enable `hermes-neural-observatory` in the vault's community plugin list.
 ## Hermes Agent adapter
 
 `integrations/hermes/` is deliberately thin. It imports the standalone package
-and registers five tools:
+and registers nine tools:
 
 | Tool | Operation |
 |---|---|
@@ -117,6 +117,10 @@ and registers five tools:
 | `hippocampal_evidence` | record weighted source/confirm/contradict evidence and append an event |
 | `hippocampal_archive` | reversibly archive a memory with an attributed reason |
 | `hippocampal_vault_sync` | dry-run or apply a bounded Obsidian projection |
+| `hippocampal_context` | reinstate context or retrieve explicit order, recency, or autobiography |
+| `hippocampal_reactivate` | retrieve and evaluate guarded lability boundaries |
+| `hippocampal_reconsolidate` | integrate cited evidence with immutable versions |
+| `hippocampal_cognitive_status` | inspect contexts, events, source monitoring, lability, and self-recollection metadata |
 
 Tool schemas constrain memory kinds, provenance types, confidence/weight ranges,
 and required fields. Actor/session context is used as the default source

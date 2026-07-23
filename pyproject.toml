@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hippocampal-memory"
-version = "0.2.1"
+version = "0.3.0"
 description = "Local-first cognitive memory with provenance, evidence, Obsidian projection, GPU consolidation, and a 3-D neural observatory"
 readme = "README.md"
 requires-python = ">=3.10"

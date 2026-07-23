@@ -78,6 +78,19 @@ CREATE TABLE IF NOT EXISTS neural_checkpoints (
     created_at TEXT NOT NULL,
     metadata_json TEXT NOT NULL DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS time_cell_bindings (
+    memory_id TEXT PRIMARY KEY,
+    context_id TEXT NOT NULL DEFAULT '',
+    event_id TEXT NOT NULL DEFAULT '',
+    sequence_index INTEGER,
+    cell_ids_json TEXT NOT NULL,
+    preferred_phase_json TEXT NOT NULL,
+    circuit_version TEXT NOT NULL,
+    last_replayed_at TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_time_cell_context_sequence
+    ON time_cell_bindings(context_id,event_id,sequence_index);
 """
 
 _ACTORS = {"user", "agent", "web", "reflection", "sensor", "system", "import"}
@@ -285,6 +298,62 @@ class MemoryCoordinator:
             actor_ref="hippocampal-circuit",
         )
         return engram_id
+
+    def bind_time_cells(
+        self,
+        memory_id: int | str,
+        cell_ids: Iterable[int],
+        *,
+        preferred_phases: Iterable[float],
+        circuit_version: str,
+        context_id: str = "",
+        event_id: str = "",
+        sequence_index: int | None = None,
+    ) -> None:
+        """Bind a memory's temporal position to an inspectable time-cell assembly."""
+        memory_id = str(memory_id)
+        ids = [int(value) for value in cell_ids]
+        phases = [max(0.0, min(1.0, float(value))) for value in preferred_phases]
+        if not ids or len(ids) != len(phases):
+            raise ValueError("time-cell IDs and preferred phases must align")
+        with self.store._lock:
+            self.store._conn.execute(
+                """
+                INSERT INTO time_cell_bindings(
+                    memory_id,context_id,event_id,sequence_index,cell_ids_json,
+                    preferred_phase_json,circuit_version,created_at
+                ) VALUES(?,?,?,?,?,?,?,?)
+                ON CONFLICT(memory_id) DO UPDATE SET
+                    context_id=excluded.context_id,event_id=excluded.event_id,
+                    sequence_index=excluded.sequence_index,
+                    cell_ids_json=excluded.cell_ids_json,
+                    preferred_phase_json=excluded.preferred_phase_json,
+                    circuit_version=excluded.circuit_version
+                """,
+                (
+                    memory_id,
+                    context_id,
+                    event_id,
+                    sequence_index,
+                    _json(ids),
+                    _json(phases),
+                    circuit_version,
+                    _now(),
+                ),
+            )
+        self.append_event(
+            f"memory:{memory_id}",
+            "time-cells.bound",
+            {
+                "cell_count": len(ids),
+                "context_id": context_id,
+                "event_id": event_id,
+                "sequence_index": sequence_index,
+                "circuit_version": circuit_version,
+            },
+            actor_type="system",
+            actor_ref="hippocampal-time-cells",
+        )
 
     def register_vault_note(
         self, memory_id: int | str, note_path: str, note_id: str | None = None

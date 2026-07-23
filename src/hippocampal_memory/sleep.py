@@ -50,12 +50,20 @@ class SleepConsolidator:
             rows = self.store._conn.execute(
                 """
                 SELECT f.fact_id, f.content, f.trust_score, f.salience_score,
-                       f.memory_kind, b.engram_id, b.neuron_ids_json
+                       f.memory_kind, f.context_id, f.event_id, f.sequence_index,
+                       b.engram_id, b.neuron_ids_json, t.memory_id time_binding_id,
+                       (SELECT window_id FROM reconsolidation_windows w
+                        WHERE w.fact_id=f.fact_id AND w.status='labile'
+                          AND w.closes_at>CURRENT_TIMESTAMP
+                        ORDER BY w.opened_at DESC LIMIT 1) reconsolidation_window_id
                 FROM facts f LEFT JOIN engram_bindings b
                   ON b.memory_id=CAST(f.fact_id AS TEXT)
+                LEFT JOIN time_cell_bindings t
+                  ON t.memory_id=CAST(f.fact_id AS TEXT)
                 WHERE f.status='active' AND f.memory_kind IN
                     ('episode','fact','principle','identity')
-                ORDER BY f.pinned DESC, f.salience_score DESC,
+                ORDER BY (reconsolidation_window_id IS NOT NULL) DESC,
+                         f.pinned DESC, f.salience_score DESC,
                          f.updated_at DESC
                 LIMIT ?
                 """,
@@ -110,6 +118,32 @@ class SleepConsolidator:
                         frames_written += self._write_frames(
                             recorder, result["frames"], memory_id
                         )
+                    time_cells = circuit.time_cell_assignment(f"memory:{memory_id}")
+                    if not row["time_binding_id"]:
+                        phase_by_id = {
+                            int(cell_id): float(phase)
+                            for cell_id, phase in zip(
+                                circuit.time_cell_ids.detach().cpu().tolist(),
+                                circuit.time_cell_preferred_phase.detach()
+                                .cpu()
+                                .tolist(),
+                            )
+                        }
+                        self.coordinator.bind_time_cells(
+                            memory_id,
+                            time_cells,
+                            preferred_phases=[
+                                phase_by_id[cell_id] for cell_id in time_cells
+                            ],
+                            circuit_version=self.config.version,
+                            context_id=str(row["context_id"] or ""),
+                            event_id=str(row["event_id"] or ""),
+                            sequence_index=row["sequence_index"],
+                        )
+                    reconsolidating = bool(row["reconsolidation_window_id"])
+                    context_key = str(
+                        row["context_id"] or row["event_id"] or f"memory:{memory_id}"
+                    )
                     for phase, cycles in (
                         ("nrem", nrem_cycles),
                         ("rem", rem_cycles),
@@ -118,6 +152,8 @@ class SleepConsolidator:
                             neurons,
                             phase=phase,
                             cycles=cycles,
+                            context_key=context_key,
+                            reconsolidating=reconsolidating,
                             preempt=lease.should_preempt,
                         )
                         frames_written += self._write_frames(
@@ -140,6 +176,14 @@ class SleepConsolidator:
                             """,
                             (str(memory_id),),
                         )
+                        self.store._conn.execute(
+                            """
+                            UPDATE time_cell_bindings SET
+                                last_replayed_at=CURRENT_TIMESTAMP
+                            WHERE memory_id=?
+                            """,
+                            (str(memory_id),),
+                        )
                     self.coordinator.append_event(
                         f"memory:{memory_id}",
                         "engram.replayed",
@@ -147,6 +191,11 @@ class SleepConsolidator:
                             "sleep_session_id": session_id,
                             "phases": ["nrem", "rem"],
                             "circuit_version": self.config.version,
+                            "context_id": context_key,
+                            "time_cell_count": len(time_cells),
+                            "reconsolidation_window_id": row[
+                                "reconsolidation_window_id"
+                            ],
                         },
                         actor_type="system",
                         actor_ref="sleep-consolidator",

@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .activity import foreground_active, foreground_idle_seconds
+from .cognition import CognitiveMemorySystem
 
 from .store import MemoryStore
 
@@ -59,6 +60,21 @@ _EXTRACTION_SCHEMA = {
                     "salience": {"type": "number", "minimum": 0, "maximum": 1},
                     "source_quality": {"type": "number", "minimum": 0, "maximum": 1},
                     "pinned": {"type": "boolean"},
+                    "autobiographical": {"type": "boolean"},
+                    "self_relevance": {"type": "number", "minimum": 0, "maximum": 1},
+                    "perspective": {
+                        "type": "string",
+                        "enum": ["field", "observer", "semantic", "unknown"],
+                    },
+                    "recollection_mode": {
+                        "type": "string",
+                        "enum": ["remember", "know", "inferred", "unknown"],
+                    },
+                    "vividness": {"type": "number", "minimum": 0, "maximum": 1},
+                    "temporal_uncertainty_seconds": {
+                        "type": "number",
+                        "minimum": 0,
+                    },
                 },
                 "required": [
                     "content",
@@ -176,6 +192,7 @@ class HippocampusEngine:
         self.store = store or MemoryStore(
             root / "memory_store.db", hrr_dim=self.config.hrr_dim
         )
+        self.cognition = CognitiveMemorySystem(self.store)
         self.state_db = Path(state_db or (root / "state.db"))
 
     def close(self) -> None:
@@ -392,6 +409,7 @@ class HippocampusEngine:
         self, run_id: int, session_id: str, result: dict, allowed: dict[int, dict]
     ) -> tuple[int, int]:
         created = rejected = 0
+        observed_ids: list[int] = []
         for item in result.get("memories", []):
             if not isinstance(item, dict):
                 rejected += 1
@@ -416,13 +434,21 @@ class HippocampusEngine:
                     payload=item,
                 )
                 continue
-            first = allowed[source_ids[0]]
             provenance_type = (
                 "user"
                 if any(allowed[source_id]["role"] == "user" for source_id in source_ids)
                 else "agent"
             )
             content = str(item["content"]).strip()[:1200]
+            existing = self.store._conn.execute(
+                "SELECT fact_id FROM facts WHERE content=?", (content,)
+            ).fetchone()
+            cited = [allowed[source_id] for source_id in source_ids]
+            starts = [_utc_iso(row["timestamp"]) for row in cited]
+            autobiographical = (
+                provenance_type in {"agent", "reflection"}
+                and bool(item.get("autobiographical", False))
+            )
             fact_id = self.store.add_fact(
                 content,
                 category=item.get("category", "general"),
@@ -438,13 +464,26 @@ class HippocampusEngine:
                 memory_kind=item["kind"],
                 subject_key=str(item.get("subject_key", "")),
                 predicate_key=str(item.get("predicate_key", "")),
-                valid_from=_utc_iso(first["timestamp"]),
+                valid_from=min(starts),
+                event_start_at=min(starts),
+                event_end_at=max(starts),
+                temporal_uncertainty_seconds=float(
+                    item.get("temporal_uncertainty_seconds", 0.0)
+                ),
+                autobiographical=autobiographical,
+                self_relevance=float(item.get("self_relevance", 0.0)),
+                perspective=str(item.get("perspective", "unknown")),
+                recollection_mode=str(item.get("recollection_mode", "know")),
+                vividness=float(item.get("vividness", 0.0)),
                 expires_at=item.get("expires_at"),
                 salience_score=float(item.get("salience", 0.5)),
                 source_quality=float(item.get("source_quality", 0.5)),
                 pinned=bool(item.get("pinned", False)),
             )
-            created += 1
+            if existing is None:
+                created += 1
+            observed_ids.append(fact_id)
+            self.cognition.monitor_source(fact_id)
             self._record_decision(
                 run_id,
                 "extract",
@@ -452,6 +491,10 @@ class HippocampusEngine:
                 reason="grounded replay extraction",
                 target_fact_id=fact_id,
                 source_ids=source_ids,
+            )
+        if observed_ids:
+            self.cognition.segment_memories(
+                observed_ids, context_id=f"session:{session_id}"
             )
         return created, rejected
 

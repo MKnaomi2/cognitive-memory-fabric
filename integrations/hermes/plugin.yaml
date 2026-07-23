@@ -1,6 +1,6 @@
 name: hippocampal-memory
-version: 0.2.1
-description: "Local-first cognitive memory with provenance, evidence, conflict preservation, reversible forgetting, Obsidian projection, and neural consolidation."
+version: 0.3.0
+description: "Temporal and autobiographical cognitive memory with source monitoring, event segmentation, context reinstatement, reconsolidation, Obsidian projection, and neural time cells."
 author: MKnaomi2
 kind: backend
 provides_tools:
@@ -9,3 +9,7 @@ provides_tools:
   - hippocampal_evidence
   - hippocampal_archive
   - hippocampal_vault_sync
+  - hippocampal_context
+  - hippocampal_reactivate
+  - hippocampal_reconsolidate
+  - hippocampal_cognitive_status

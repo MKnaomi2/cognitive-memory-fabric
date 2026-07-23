@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0 — 2026-07-23
+
+### Cognitive temporal memory
+
+- Added temporal contexts, event segmentation, order bindings, recency recall,
+  source monitoring, and context reinstatement.
+- Added autobiographical self-relevance, perspective, vividness, and
+  remember/know/inferred metadata without making a consciousness claim.
+- Added guarded reconsolidation boundaries, labile windows, immutable
+  before/after versions, and evidence-based restabilization.
+- Added context-remapped EC/CA1 time cells, elapsed-phase telemetry/decoding,
+  temporal bindings, and a reconsolidation plasticity mode.
+- Added Hermes tools, CLI inspection, idempotent legacy-memory enrichment, and
+  expanded Obsidian projection.
+
 ## 0.2.1 — 2026-07-23
 
 ### Reliability

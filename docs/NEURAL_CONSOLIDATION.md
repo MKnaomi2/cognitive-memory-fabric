@@ -7,6 +7,13 @@ hippocampal trisynaptic circuit and sleep consolidation. It provides local
 plasticity, replay, inspectable activity, and durable checkpoints. It is not a
 biophysical simulation or a claim that digital engrams reproduce human memory.
 
+Circuit version `trisynaptic-v2-time-cells` adds context-remapped scalar
+temporal receptive fields to deterministic subsets of EC and CA1. Active IDs,
+preferred phases, widths, encoded/decoded elapsed phase, and
+memory/context/sequence bindings are inspectable. Alternating NREM packets
+provide forward and reverse temporal replay. A labile reconsolidation trace
+receives a distinct bounded neuromodulation regime.
+
 ## Topology
 
 | Pathway | Source neurons | Fan-out | Synapses | Plastic |

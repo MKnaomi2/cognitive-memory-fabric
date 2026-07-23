@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from hippocampal_memory.coordination import MemoryCoordinator, RevisionConflict
+from hippocampal_memory.cognition import CognitiveMemorySystem
 from hippocampal_memory.store import MemoryStore
 from hippocampal_memory.vault import VaultSynchronizer
 
@@ -47,7 +48,18 @@ def test_vault_projection_preserves_human_notes(tmp_path: Path) -> None:
         actor_ref="replay:7",
         memory_kind="principle",
         confidence=0.82,
+        context_id="context:refactor",
+        event_start_at="2026-01-01T12:00:00+00:00",
+        event_end_at="2026-01-01T12:05:00+00:00",
+        autobiographical=True,
+        self_relevance=0.8,
+        perspective="field",
+        recollection_mode="remember",
+        vividness=0.7,
     )
+    cognition = CognitiveMemorySystem(store, coordinator)
+    cognition.segment_memories([memory_id], context_id="context:refactor")
+    cognition.monitor_source(memory_id)
     vault = tmp_path / "vault"
     synchronizer = VaultSynchronizer(store, vault, coordinator)
     first = synchronizer.plan([memory_id])
@@ -74,6 +86,10 @@ def test_vault_projection_preserves_human_notes(tmp_path: Path) -> None:
     synchronizer.apply(second)
     assert "My annotation." in note.read_text()
     assert "sync_revision: 2" in note.read_text()
+    assert 'context_id: "context:refactor"' in note.read_text()
+    assert "recollection_mode: \"remember\"" in note.read_text()
+    assert "## Temporal context" in note.read_text()
+    assert "## Recollection" in note.read_text()
     store.close()
 
 

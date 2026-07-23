@@ -16,6 +16,7 @@ if str(_SOURCE) not in sys.path:
     sys.path.insert(0, str(_SOURCE))
 
 from hippocampal_memory.coordination import MemoryCoordinator  # noqa: E402
+from hippocampal_memory.cognition import CognitiveMemorySystem  # noqa: E402
 from hippocampal_memory.replay import HippocampusEngine  # noqa: E402
 from hippocampal_memory.vault import VaultSynchronizer  # noqa: E402
 
@@ -54,6 +55,14 @@ def _remember(args: dict, **context: Any) -> str:
         subject_key=str(args.get("subject_key") or ""),
         predicate_key=str(args.get("predicate_key") or ""),
         pinned=bool(args.get("pinned", False)),
+        context_id=str(args.get("context_id") or ""),
+        event_start_at=str(args.get("event_start_at") or "") or None,
+        event_end_at=str(args.get("event_end_at") or "") or None,
+        autobiographical=bool(args.get("autobiographical", False)),
+        self_relevance=float(args.get("self_relevance", 0.0)),
+        perspective=str(args.get("perspective") or "unknown"),
+        recollection_mode=str(args.get("recollection_mode") or "know"),
+        vividness=float(args.get("vividness", 0.0)),
     )
     return _result({"ok": True, "memory_id": memory_id, "revision": coordinator.current_revision(f"memory:{memory_id}")})
 
@@ -142,6 +151,75 @@ def _vault_sync(args: dict, **_: Any) -> str:
     return _result(result)
 
 
+def _context(args: dict, **_: Any) -> str:
+    cognition = CognitiveMemorySystem(_get_engine().store)
+    action = str(args.get("action") or "reinstate")
+    if action == "reinstate":
+        result = cognition.reinstate_context(
+            cue=str(args.get("cue") or ""),
+            memory_id=(
+                int(args["memory_id"]) if args.get("memory_id") is not None else None
+            ),
+            limit=int(args.get("limit") or 20),
+        )
+    elif action == "temporal_order":
+        result = {
+            "memories": cognition.temporal_order(
+                context_id=str(args.get("context_id") or "") or None,
+                event_id=str(args.get("event_id") or "") or None,
+            )
+        }
+    elif action == "recency":
+        result = {
+            "memories": cognition.recall_recent(
+                limit=int(args.get("limit") or 20),
+                half_life_hours=float(args.get("half_life_hours") or 168),
+                context_id=str(args.get("context_id") or "") or None,
+            )
+        }
+    elif action == "autobiography":
+        result = {"memories": cognition.autobiographical_timeline(args.get("limit", 100))}
+    else:
+        return _result({"ok": False, "error": "unsupported context action"})
+    return _result({"ok": True, **result})
+
+
+def _reactivate(args: dict, **_: Any) -> str:
+    result = CognitiveMemorySystem(_get_engine().store).reactivate(
+        int(args["memory_id"]),
+        cue=str(args.get("cue") or ""),
+        prediction_error=float(args.get("prediction_error") or 0.0),
+        retrieval_duration_seconds=float(
+            args.get("retrieval_duration_seconds") or 0.0
+        ),
+    )
+    return _result({"ok": True, **result})
+
+
+def _reconsolidate(args: dict, **context: Any) -> str:
+    result = CognitiveMemorySystem(_get_engine().store).reconsolidate(
+        str(args["window_id"]),
+        polarity=str(args["polarity"]),
+        provenance_type=str(args.get("provenance_type") or "user"),
+        provenance_ref=str(
+            args.get("source_ref") or context.get("session_id") or ""
+        ),
+        detail=str(args.get("detail") or ""),
+        weight=float(args.get("weight") or 1.0),
+        contextual_updates=dict(args.get("contextual_updates") or {}),
+    )
+    return _result({"ok": True, **result})
+
+
+def _cognitive_status(args: dict, **_: Any) -> str:
+    cognition = CognitiveMemorySystem(_get_engine().store)
+    memory_id = args.get("memory_id")
+    result = cognition.status()
+    if memory_id is not None:
+        result["source_monitoring"] = cognition.monitor_source(int(memory_id))
+    return _result({"ok": True, **result})
+
+
 REMEMBER_SCHEMA = {
     "name": "hippocampal_remember",
     "description": "Store a durable memory with explicit provenance and confidence.",
@@ -157,6 +235,14 @@ REMEMBER_SCHEMA = {
             "subject_key": {"type": "string"},
             "predicate_key": {"type": "string"},
             "pinned": {"type": "boolean"}
+            ,"context_id": {"type": "string"}
+            ,"event_start_at": {"type": "string"}
+            ,"event_end_at": {"type": "string"}
+            ,"autobiographical": {"type": "boolean"}
+            ,"self_relevance": {"type": "number", "minimum": 0, "maximum": 1}
+            ,"perspective": {"type": "string", "enum": ["field", "observer", "semantic", "unknown"]}
+            ,"recollection_mode": {"type": "string", "enum": ["remember", "know", "inferred", "unknown"]}
+            ,"vividness": {"type": "number", "minimum": 0, "maximum": 1}
         },
         "required": ["content"]
     }
@@ -213,6 +299,62 @@ VAULT_SCHEMA = {
         }
     }
 }
+CONTEXT_SCHEMA = {
+    "name": "hippocampal_context",
+    "description": "Reinstate temporal context, recall explicit order/recency, or inspect autobiographical memory.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["reinstate", "temporal_order", "recency", "autobiography"]},
+            "memory_id": {"type": "integer"},
+            "cue": {"type": "string"},
+            "context_id": {"type": "string"},
+            "event_id": {"type": "string"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+            "half_life_hours": {"type": "number", "minimum": 0.01}
+        },
+        "required": ["action"]
+    }
+}
+REACTIVATE_SCHEMA = {
+    "name": "hippocampal_reactivate",
+    "description": "Reinstate a memory and, only when boundary conditions pass, open a time-bounded reconsolidation window.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "memory_id": {"type": "integer"},
+            "cue": {"type": "string"},
+            "prediction_error": {"type": "number", "minimum": 0, "maximum": 1},
+            "retrieval_duration_seconds": {"type": "number", "minimum": 0}
+        },
+        "required": ["memory_id", "cue"]
+    }
+}
+RECONSOLIDATE_SCHEMA = {
+    "name": "hippocampal_reconsolidate",
+    "description": "Integrate cited evidence into a labile memory while preserving before/after versions.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "window_id": {"type": "string"},
+            "polarity": {"type": "string", "enum": ["confirm", "contradict"]},
+            "provenance_type": {"type": "string", "enum": ["user", "agent", "web", "reflection", "sensor", "system"]},
+            "source_ref": {"type": "string"},
+            "detail": {"type": "string"},
+            "weight": {"type": "number", "minimum": 0, "maximum": 1},
+            "contextual_updates": {"type": "object"}
+        },
+        "required": ["window_id", "polarity", "detail"]
+    }
+}
+COGNITIVE_STATUS_SCHEMA = {
+    "name": "hippocampal_cognitive_status",
+    "description": "Inspect temporal contexts, events, source monitoring, reconsolidation, and operational self-recollection state.",
+    "parameters": {
+        "type": "object",
+        "properties": {"memory_id": {"type": "integer"}}
+    }
+}
 
 
 def _check() -> tuple[bool, str]:
@@ -230,6 +372,10 @@ def register(ctx) -> None:
         ("hippocampal_evidence", EVIDENCE_SCHEMA, _evidence, "⚖️"),
         ("hippocampal_archive", ARCHIVE_SCHEMA, _archive, "🗄️"),
         ("hippocampal_vault_sync", VAULT_SCHEMA, _vault_sync, "🔗"),
+        ("hippocampal_context", CONTEXT_SCHEMA, _context, "🕰️"),
+        ("hippocampal_reactivate", REACTIVATE_SCHEMA, _reactivate, "♻️"),
+        ("hippocampal_reconsolidate", RECONSOLIDATE_SCHEMA, _reconsolidate, "🧬"),
+        ("hippocampal_cognitive_status", COGNITIVE_STATUS_SCHEMA, _cognitive_status, "🧭"),
     ):
         ctx.register_tool(
             name=name,

@@ -9,6 +9,11 @@ contradictions, archives obsolete knowledge before deletion, consolidates
 episodes into reusable principles, and derives carefully gated identity
 meta-memories.
 
+Version 0.3 also represents temporal context and order, recency, source
+monitoring, autobiographical recollection metadata, event segmentation,
+context reinstatement, guarded reconsolidation, and simulated EC/CA1 time-cell
+sequences.
+
 The package combines five cooperating systems:
 
 - an authoritative SQLite lifecycle store;
@@ -17,11 +22,11 @@ The package combines five cooperating systems:
 - a 36,864-neuron GPU spiking circuit for local replay; and
 - a live WebGPU/WebGL observatory for inspecting neural activity in 3-D.
 
-It is independent of Hermes Agent. A thin optional plugin gives Hermes five
+It is independent of Hermes Agent. A thin optional plugin gives Hermes nine
 native memory tools without moving the lifecycle implementation into the Hermes
 repository.
 
-> **Maturity:** version 0.2.0 is an alpha research system. Its lifecycle,
+> **Maturity:** version 0.3.0 is an alpha research system. Its lifecycle,
 > migration, replay, and observability contracts are tested, but the neural
 > circuit is an engineering model inspired by hippocampal organization—not a
 > claim of biological equivalence.
@@ -263,6 +268,7 @@ granting it vault-write authority. Full contracts and migration behavior are in
 | [Architecture](docs/ARCHITECTURE.md) | authority boundaries, data model, events, transactions, retrieval |
 | [Memory lifecycle](docs/MEMORY_LIFECYCLE.md) | provenance, confidence equations, evidence gates, conflict, consolidation, forgetting |
 | [Neural consolidation](docs/NEURAL_CONSOLIDATION.md) | topology, dynamics, plasticity, sleep replay, checkpoints, GPU preemption |
+| [Cognitive mechanisms](docs/COGNITIVE_MECHANISMS.md) | temporal/source/autobiographical constructs, segmentation, reinstatement, reconsolidation, time cells |
 | [Observability](docs/OBSERVABILITY.md) | telemetry API, WebSocket/frame schemas, recording format, 3-D viewer |
 | [Integrations](docs/INTEGRATIONS.md) | Obsidian projection/migration and Hermes tool contracts |
 | [Operations](docs/OPERATIONS.md) | installation, CLI, scheduled tasks, validation, recovery, troubleshooting |

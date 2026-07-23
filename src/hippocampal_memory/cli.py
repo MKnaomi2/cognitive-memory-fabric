@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from .circuit import TrisynapticCircuit
+from .cognition import CognitiveMemorySystem
 from .coordination import MemoryCoordinator
 from .replay import DEFAULT_MODEL, DEFAULT_URL, HippocampusEngine, ReplayConfig
 from .sleep import SleepConsolidator
@@ -52,6 +53,20 @@ def _parser() -> argparse.ArgumentParser:
     sleep = commands.add_parser("sleep")
     sleep.add_argument("--state-root", type=Path)
     sleep.add_argument("--max-memories", type=int, default=8)
+    commands.add_parser("cognitive-status")
+    backfill = commands.add_parser("cognitive-backfill")
+    backfill.add_argument("--max-memories", type=int, default=5000)
+    timeline = commands.add_parser("timeline")
+    timeline.add_argument("--limit", type=int, default=100)
+    context = commands.add_parser("context")
+    context.add_argument("--memory-id", type=int)
+    context.add_argument("--cue", default="")
+    context.add_argument("--limit", type=int, default=20)
+    reactivate = commands.add_parser("reactivate")
+    reactivate.add_argument("--memory-id", type=int, required=True)
+    reactivate.add_argument("--cue", required=True)
+    reactivate.add_argument("--prediction-error", type=float, default=0.0)
+    reactivate.add_argument("--retrieval-seconds", type=float, default=0.0)
     return parser
 
 
@@ -130,7 +145,37 @@ def main(argv: list[str] | None = None) -> int:
                 "synapses": sum(item.pre.numel() for item in circuit.pathways),
                 "engram_neurons": len(probe["engram_neurons"]),
                 "last_region_spikes": probe["frames"][-1]["region_spikes"],
+                "time_cells": len(probe["time_cell_neurons"]),
             }
+        elif args.command in {
+            "cognitive-status",
+            "cognitive-backfill",
+            "timeline",
+            "context",
+            "reactivate",
+        }:
+            cognition = CognitiveMemorySystem(
+                engine.store, coordinator=MemoryCoordinator(engine.store)
+            )
+            if args.command == "cognitive-status":
+                result = cognition.status()
+            elif args.command == "cognitive-backfill":
+                result = cognition.backfill_existing(max_memories=args.max_memories)
+            elif args.command == "timeline":
+                result = {
+                    "memories": cognition.autobiographical_timeline(args.limit)
+                }
+            elif args.command == "context":
+                result = cognition.reinstate_context(
+                    memory_id=args.memory_id, cue=args.cue, limit=args.limit
+                )
+            else:
+                result = cognition.reactivate(
+                    args.memory_id,
+                    cue=args.cue,
+                    prediction_error=args.prediction_error,
+                    retrieval_duration_seconds=args.retrieval_seconds,
+                )
         else:
             token = observatory_token(
                 engine.store.db_path.parent / "runtime" / "observatory.token"
