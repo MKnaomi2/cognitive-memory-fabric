@@ -47,7 +47,7 @@ repository.
 | Plasticity | Local STDP, bounded weights, homeostatic thresholds, refractory periods, and local inhibition |
 | Sleep | Exclusive-GPU encoding, NREM ripple/spindle replay, REM associative replay, foreground preemption, recordings, and hashed checkpoints |
 | Observatory | Loopback-only API, binary WebSocket telemetry, live/recorded 3-D rendering, LOD, filtering, inspection, and replay scrubbing |
-| Agent integration | Five Hermes tools plus a desktop Obsidian observatory adapter |
+| Agent integration | Nine Hermes tools plus a desktop Obsidian observatory adapter |
 
 ## Architecture
 
