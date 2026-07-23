@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hippocampal-memory"
+version = "0.1.0"
+description = "Provenance-aware memory replay, consolidation, confidence, conflict detection, and reversible forgetting"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "MKnaomi2" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Database",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.optional-dependencies]
+holographic = ["numpy>=1.26"]
+hermes = ["pyyaml>=6"]
+dev = ["pytest>=8", "ruff>=0.11"]
+
+[project.scripts]
+hippocampal-memory = "hippocampal_memory.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hippocampal_memory"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"

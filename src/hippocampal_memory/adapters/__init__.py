@@ -1,0 +1,1 @@
+"""Optional host-agent adapters."""
