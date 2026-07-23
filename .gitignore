@@ -3,8 +3,11 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+.venv-neural/
 dist/
 build/
+!viewer/build/
+!viewer/build/sites-vite-plugin.ts
 *.egg-info/
 *.db
 *.db-shm

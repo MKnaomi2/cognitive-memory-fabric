@@ -35,5 +35,6 @@ def create_engine() -> HippocampusEngine:
         config=ReplayConfig(
             enabled=enabled,
             model=str(values.get("hippocampus_model", DEFAULT_MODEL)),
+            hrr_dim=int(values.get("hrr_dim", 4096)),
         ),
     )

@@ -110,7 +110,58 @@ def test_malformed_local_json_retries_once_with_larger_budget(tmp_path, monkeypa
     monkeypatch.setattr(engine, "_ollama_json_attempt", attempt)
 
     assert engine._ollama_json("prompt", {}) == {"memories": []}
-    assert calls == [2048, 4096]
+    assert calls == [4096, 6144]
+    store.close()
+
+
+def test_malformed_session_is_deferred_without_blocking_queue(tmp_path):
+    state = tmp_path / "state.db"
+    _state_db(state)
+    store = MemoryStore(tmp_path / "memory.db", hrr_dim=64)
+
+    class MalformedEngine(_FakeEngine):
+        def _ollama_json(self, prompt, schema):
+            if "Extract durable" in prompt:
+                raise json.JSONDecodeError("malformed", "{", 1)
+            return super()._ollama_json(prompt, schema)
+
+    engine = MalformedEngine(
+        store=store, state_db=state, config=ReplayConfig(gpu_busy_threshold=101)
+    )
+
+    result = engine.run("backfill")
+
+    assert result["status"] == "completed"
+    assert result["warnings"]
+    queue = store._conn.execute(
+        "SELECT status, attempts, last_error FROM hippocampus_sessions "
+        "WHERE session_id = 's1'"
+    ).fetchone()
+    assert queue["status"] == "retry"
+    assert queue["attempts"] == 1
+    assert "JSONDecodeError" in queue["last_error"]
+    store.close()
+
+
+def test_consolidation_failure_preserves_completed_extraction(tmp_path):
+    state = tmp_path / "state.db"
+    _state_db(state)
+    store = MemoryStore(tmp_path / "memory.db", hrr_dim=64)
+
+    class ConsolidationFailureEngine(_FakeEngine):
+        def _consolidate(self, run_id):
+            raise json.JSONDecodeError("malformed", "{", 1)
+
+    engine = ConsolidationFailureEngine(
+        store=store, state_db=state, config=ReplayConfig(gpu_busy_threshold=101)
+    )
+
+    result = engine.run("backfill")
+
+    assert result["status"] == "completed"
+    assert result["memories_created"] == 1
+    assert "consolidation deferred" in result["error"]
+    assert store.list_facts()
     store.close()
 
 

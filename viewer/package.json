@@ -1,0 +1,46 @@
+{
+  "name": "hermes-neural-observatory",
+  "version": "0.2.0",
+  "description": "Loopback WebGPU/WebGL observatory for live and recorded hippocampal memory consolidation",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vinext dev",
+    "build": "vinext build",
+    "start": "vinext start",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.2",
+    "next": "^16.2.11",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.47.0",
+    "@tailwindcss/postcss": "4.2.1",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-rsc": "0.5.26",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.6",
+    "react-server-dom-webpack": "19.2.6",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.9.3",
+    "vinext": "0.0.50",
+    "vite": "^8.1.5",
+    "wrangler": "^4.114.0"
+  },
+  "overrides": {
+    "postcss": "8.5.22",
+    "sharp": "0.35.2"
+  },
+  "type": "module"
+}

@@ -15,12 +15,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .activity import foreground_active, foreground_idle_seconds
+from .cognition import CognitiveMemorySystem
 
 from .store import MemoryStore
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSION = "hippocampus-v2"
+PROMPT_VERSION = "hippocampus-v3"
 DEFAULT_MODEL = "hermes-local:latest"
 DEFAULT_URL = "http://127.0.0.1:11434/api/chat"
 
@@ -59,6 +60,21 @@ _EXTRACTION_SCHEMA = {
                     "salience": {"type": "number", "minimum": 0, "maximum": 1},
                     "source_quality": {"type": "number", "minimum": 0, "maximum": 1},
                     "pinned": {"type": "boolean"},
+                    "autobiographical": {"type": "boolean"},
+                    "self_relevance": {"type": "number", "minimum": 0, "maximum": 1},
+                    "perspective": {
+                        "type": "string",
+                        "enum": ["field", "observer", "semantic", "unknown"],
+                    },
+                    "recollection_mode": {
+                        "type": "string",
+                        "enum": ["remember", "know", "inferred", "unknown"],
+                    },
+                    "vividness": {"type": "number", "minimum": 0, "maximum": 1},
+                    "temporal_uncertainty_seconds": {
+                        "type": "number",
+                        "minimum": 0,
+                    },
                 },
                 "required": [
                     "content",
@@ -84,7 +100,7 @@ _CONSOLIDATION_SCHEMA = {
     "properties": {
         "consolidations": {
             "type": "array",
-            "maxItems": 8,
+            "maxItems": 4,
             "items": {
                 "type": "object",
                 "properties": {
@@ -105,7 +121,7 @@ _CONSOLIDATION_SCHEMA = {
         },
         "supersessions": {
             "type": "array",
-            "maxItems": 8,
+            "maxItems": 4,
             "items": {
                 "type": "object",
                 "properties": {
@@ -125,16 +141,22 @@ class ReplayPreempted(RuntimeError):
     pass
 
 
+class ReplayOutputError(ValueError):
+    """The local model returned structurally invalid replay output."""
+
+
 @dataclass
 class ReplayConfig:
     enabled: bool = True
     model: str = DEFAULT_MODEL
     ollama_url: str = DEFAULT_URL
-    num_ctx: int = 8192
+    num_ctx: int = 16384
     max_sessions_micro: int = 4
     max_sessions_deep: int = 12
     max_transcript_chars: int = 28000
+    max_consolidation_facts: int = 32
     gpu_busy_threshold: int = 35
+    hrr_dim: int = 4096
 
 
 def _redact(text: str) -> str:
@@ -166,8 +188,11 @@ class HippocampusEngine:
             or (Path.home() / ".hippocampal-memory")
         ).expanduser()
         root.mkdir(parents=True, exist_ok=True)
-        self.store = store or MemoryStore(root / "memory_store.db")
         self.config = config or ReplayConfig()
+        self.store = store or MemoryStore(
+            root / "memory_store.db", hrr_dim=self.config.hrr_dim
+        )
+        self.cognition = CognitiveMemorySystem(self.store)
         self.state_db = Path(state_db or (root / "state.db"))
 
     def close(self) -> None:
@@ -194,7 +219,7 @@ class HippocampusEngine:
 
     def _ollama_json(self, prompt: str, schema: dict) -> dict:
         first_error: json.JSONDecodeError | None = None
-        for attempt, num_predict in enumerate((2048, 4096), start=1):
+        for attempt, num_predict in enumerate((4096, 6144), start=1):
             try:
                 return self._ollama_json_attempt(
                     prompt
@@ -211,7 +236,7 @@ class HippocampusEngine:
                 first_error = first_error or exc
                 logger.warning("Malformed local replay JSON; retrying once")
         assert first_error is not None
-        raise first_error
+        raise ReplayOutputError("local replay returned malformed JSON") from first_error
 
     def _ollama_json_attempt(
         self, prompt: str, schema: dict, *, num_predict: int
@@ -262,7 +287,7 @@ class HippocampusEngine:
                     raise RuntimeError(str(row["error"]))
         parsed = json.loads("".join(chunks))
         if not isinstance(parsed, dict):
-            raise ValueError("local replay returned a non-object")
+            raise ReplayOutputError("local replay returned a non-object")
         return parsed
 
     def discover_sessions(self, *, all_history: bool = True) -> int:
@@ -303,6 +328,7 @@ class HippocampusEngine:
                     self.store._conn.execute(
                         """
                         UPDATE hippocampus_sessions SET status = 'queued',
+                            attempts = 0, last_error = '', eligible_at = NULL,
                             updated_at = CURRENT_TIMESTAMP WHERE session_id = ?
                         """,
                         (row["id"],),
@@ -383,6 +409,7 @@ class HippocampusEngine:
         self, run_id: int, session_id: str, result: dict, allowed: dict[int, dict]
     ) -> tuple[int, int]:
         created = rejected = 0
+        observed_ids: list[int] = []
         for item in result.get("memories", []):
             if not isinstance(item, dict):
                 rejected += 1
@@ -407,13 +434,21 @@ class HippocampusEngine:
                     payload=item,
                 )
                 continue
-            first = allowed[source_ids[0]]
             provenance_type = (
                 "user"
                 if any(allowed[source_id]["role"] == "user" for source_id in source_ids)
                 else "agent"
             )
             content = str(item["content"]).strip()[:1200]
+            existing = self.store._conn.execute(
+                "SELECT fact_id FROM facts WHERE content=?", (content,)
+            ).fetchone()
+            cited = [allowed[source_id] for source_id in source_ids]
+            starts = [_utc_iso(row["timestamp"]) for row in cited]
+            autobiographical = (
+                provenance_type in {"agent", "reflection"}
+                and bool(item.get("autobiographical", False))
+            )
             fact_id = self.store.add_fact(
                 content,
                 category=item.get("category", "general"),
@@ -429,13 +464,26 @@ class HippocampusEngine:
                 memory_kind=item["kind"],
                 subject_key=str(item.get("subject_key", "")),
                 predicate_key=str(item.get("predicate_key", "")),
-                valid_from=_utc_iso(first["timestamp"]),
+                valid_from=min(starts),
+                event_start_at=min(starts),
+                event_end_at=max(starts),
+                temporal_uncertainty_seconds=float(
+                    item.get("temporal_uncertainty_seconds", 0.0)
+                ),
+                autobiographical=autobiographical,
+                self_relevance=float(item.get("self_relevance", 0.0)),
+                perspective=str(item.get("perspective", "unknown")),
+                recollection_mode=str(item.get("recollection_mode", "know")),
+                vividness=float(item.get("vividness", 0.0)),
                 expires_at=item.get("expires_at"),
                 salience_score=float(item.get("salience", 0.5)),
                 source_quality=float(item.get("source_quality", 0.5)),
                 pinned=bool(item.get("pinned", False)),
             )
-            created += 1
+            if existing is None:
+                created += 1
+            observed_ids.append(fact_id)
+            self.cognition.monitor_source(fact_id)
             self._record_decision(
                 run_id,
                 "extract",
@@ -443,6 +491,10 @@ class HippocampusEngine:
                 reason="grounded replay extraction",
                 target_fact_id=fact_id,
                 source_ids=source_ids,
+            )
+        if observed_ids:
+            self.cognition.segment_memories(
+                observed_ids, context_id=f"session:{session_id}"
             )
         return created, rejected
 
@@ -457,8 +509,9 @@ class HippocampusEngine:
             LEFT JOIN fact_evidence e ON e.fact_id = f.fact_id
             WHERE f.status != 'archived' AND f.memory_kind IN ('episode', 'fact')
             GROUP BY f.fact_id
-            ORDER BY f.salience_score DESC, f.updated_at DESC LIMIT 60
-            """
+            ORDER BY f.salience_score DESC, f.updated_at DESC LIMIT ?
+            """,
+            (self.config.max_consolidation_facts,),
         ).fetchall()
         if len(rows) < 3:
             return 0, 0, 0
@@ -472,7 +525,8 @@ class HippocampusEngine:
         result = self._ollama_json(
             "Identify only well-supported reusable principles or agent identity "
             "tendencies, plus clear newer replacements for the same subject and "
-            "property. Cite fact IDs exactly.\n\n" + evidence,
+            "property. Cite fact IDs exactly. Return at most four compact "
+            "consolidations and four compact supersessions.\n\n" + evidence,
             _CONSOLIDATION_SCHEMA,
         )
         consolidated = superseded = rejected = 0
@@ -600,6 +654,7 @@ class HippocampusEngine:
             "archived": 0,
             "rejected": 0,
         }
+        warnings: list[str] = []
         final_status = "completed"
         error = ""
         try:
@@ -615,13 +670,41 @@ class HippocampusEngine:
                         (session_id,),
                     )
                     continue
-                result = self._ollama_json(
-                    "Extract durable observations from this finalized experience. "
-                    "Ignore greetings, transient chatter, and unsupported inference. "
-                    "Return at most six non-overlapping memories. Pin direct user "
-                    "constraints or safety rules.\n\n" + transcript,
-                    _EXTRACTION_SCHEMA,
-                )
+                try:
+                    result = self._ollama_json(
+                        "Extract durable observations from this finalized experience. "
+                        "Ignore greetings, transient chatter, and unsupported inference. "
+                        "Return at most six non-overlapping memories. Pin direct user "
+                        "constraints or safety rules.\n\n" + transcript,
+                        _EXTRACTION_SCHEMA,
+                    )
+                except ReplayPreempted:
+                    raise
+                except (json.JSONDecodeError, ReplayOutputError) as exc:
+                    message = f"{type(exc).__name__}: {exc}"[:1000]
+                    self.store._conn.execute(
+                        """
+                        UPDATE hippocampus_sessions
+                        SET status = 'retry', attempts = attempts + 1,
+                            last_error = ?,
+                            eligible_at = datetime(
+                                'now',
+                                '+' || MIN(360, 15 * (attempts + 1)) || ' minutes'
+                            ),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE session_id = ?
+                        """,
+                        (message, session_id),
+                    )
+                    warnings.append(
+                        f"session {session_id} deferred after malformed inference"
+                    )
+                    logger.warning(
+                        "Deferring replay session %s without blocking the queue",
+                        session_id,
+                        exc_info=True,
+                    )
+                    continue
                 created, rejected = (0, 0)
                 if not shadow:
                     created, rejected = self._apply_extraction(
@@ -635,6 +718,7 @@ class HippocampusEngine:
                         """
                         UPDATE hippocampus_sessions
                         SET last_message_id = ?, status = 'done',
+                            attempts = 0, eligible_at = NULL,
                             processed_at = CURRENT_TIMESTAMP, last_error = '',
                             updated_at = CURRENT_TIMESTAMP
                         WHERE session_id = ?
@@ -645,10 +729,21 @@ class HippocampusEngine:
                 counts["memories_created"] += created
                 counts["rejected"] += rejected
             if mode in {"deep", "backfill"} and not shadow:
-                c, s, r = self._consolidate(run_id)
-                counts["consolidated"] += c
-                counts["superseded"] += s
-                counts["rejected"] += r
+                try:
+                    c, s, r = self._consolidate(run_id)
+                    counts["consolidated"] += c
+                    counts["superseded"] += s
+                    counts["rejected"] += r
+                except ReplayPreempted:
+                    raise
+                except (json.JSONDecodeError, ReplayOutputError) as exc:
+                    warnings.append(
+                        f"consolidation deferred: {type(exc).__name__}: {exc}"[:1000]
+                    )
+                    logger.warning(
+                        "Consolidation deferred without discarding replay progress",
+                        exc_info=True,
+                    )
                 maintenance = self.store.run_forgetting_maintenance()
                 counts["archived"] += maintenance["count"]
         except ReplayPreempted as exc:
@@ -658,6 +753,8 @@ class HippocampusEngine:
             final_status = "failed"
             error = f"{type(exc).__name__}: {exc}"[:1000]
             logger.exception("Hippocampus replay failed")
+        if final_status == "completed" and warnings:
+            error = "; ".join(warnings)[:1000]
         self.store._conn.execute(
             """
             UPDATE hippocampus_runs SET status = ?, sessions_seen = ?,
@@ -677,7 +774,13 @@ class HippocampusEngine:
                 run_id,
             ),
         )
-        return {"status": final_status, "run_id": run_id, **counts, "error": error}
+        return {
+            "status": final_status,
+            "run_id": run_id,
+            **counts,
+            "warnings": warnings,
+            "error": error,
+        }
 
     def daily_digest(self) -> dict:
         row = self.store._conn.execute(

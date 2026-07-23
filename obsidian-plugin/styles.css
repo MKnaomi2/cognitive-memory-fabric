@@ -1,0 +1,12 @@
+.hermes-observatory-container {
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.hermes-observatory-container iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #05090d;
+}

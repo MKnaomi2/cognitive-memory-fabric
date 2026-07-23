@@ -1,0 +1,9 @@
+{
+  "id": "hermes-neural-observatory",
+  "name": "Hermes Neural Observatory",
+  "version": "0.2.0",
+  "minAppVersion": "1.5.0",
+  "description": "Read-only 3-D observatory for live and recorded Hermes hippocampal memory consolidation.",
+  "author": "MKnaomi2",
+  "isDesktopOnly": true
+}

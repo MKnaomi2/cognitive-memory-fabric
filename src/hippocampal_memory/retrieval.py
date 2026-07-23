@@ -31,7 +31,7 @@ class FactRetriever:
         fts_weight: float = 0.4,
         jaccard_weight: float = 0.3,
         hrr_weight: float = 0.3,
-        hrr_dim: int = 1024,
+        hrr_dim: int = 4096,
     ):
         self.store = store
         self.half_life = temporal_decay_half_life
