@@ -32,7 +32,7 @@ observatory = [
   "uvicorn>=0.34",
   "websockets>=15",
 ]
-dev = ["pytest>=8", "ruff>=0.11"]
+dev = ["pytest>=8", "ruff==0.15.22"]
 
 [project.scripts]
 hippocampal-memory = "hippocampal_memory.cli:main"

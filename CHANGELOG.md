@@ -14,6 +14,7 @@
   temporal bindings, and a reconsolidation plasticity mode.
 - Added Hermes tools, CLI inspection, idempotent legacy-memory enrichment, and
   expanded Obsidian projection.
+- Pinned Ruff 0.15.22 as the reproducible lint baseline for this release.
 
 ## 0.2.1 — 2026-07-23
 
