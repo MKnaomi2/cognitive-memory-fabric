@@ -1,5 +1,5 @@
 name: hippocampal-memory
-version: 0.2.0
+version: 0.2.1
 description: "Local-first cognitive memory with provenance, evidence, conflict preservation, reversible forgetting, Obsidian projection, and neural consolidation."
 author: MKnaomi2
 kind: backend

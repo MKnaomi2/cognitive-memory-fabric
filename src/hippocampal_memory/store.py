@@ -208,7 +208,7 @@ class MemoryStore:
         self,
         db_path: "str | Path | None" = None,
         default_trust: float = 0.5,
-        hrr_dim: int = 1024,
+        hrr_dim: int = 4096,
     ) -> None:
         if db_path is None:
             configured = os.environ.get("HIPPOCAMPAL_MEMORY_HOME")

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1 — 2026-07-23
+
+### Reliability
+
+- Increased replay context/output budgets and bounded abstraction prompts to
+  prevent structured local-model output truncation.
+- Isolated malformed source sessions with persisted delayed retries so one
+  response cannot block the queue.
+- Preserved completed ingestion when a consolidation proposal is malformed.
+- Raised the default holographic representation to 4,096 dimensions and
+  documented index-capacity expectations.
+- Clarified that transcript ingestion and neural sleep are complementary
+  scheduled stages.
+
 ## 0.2.0 — 2026-07-23
 
 ### Memory lifecycle

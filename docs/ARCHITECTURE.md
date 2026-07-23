@@ -130,7 +130,9 @@ Retrieval is deliberately separable from lifecycle policy:
 - FTS5 provides lexical ranking.
 - Confidence, status, and category constrain results.
 - Optional holographic reduced representations encode words and facts as
-  1,024-dimensional phase vectors for associative similarity.
+  4,096-dimensional phase vectors for associative similarity. At the warning
+  threshold of one item per four dimensions, a category bank can hold roughly
+  1,024 active items before its estimated signal-to-noise ratio falls below 2.
 - Retrieval/use feedback adjusts confidence by small bounded deltas.
 - Archived memories are excluded unless explicitly requested.
 
@@ -149,6 +151,10 @@ Retrieval does not create truth. Evidence and policy change lifecycle state.
   previously applied mutations.
 - Neural recordings are authoritative when no live viewer is available.
 - GPU replay can stop between circuit steps when foreground work appears.
+- Malformed extraction output defers only the affected source session with a
+  persisted retry time; it does not block later sessions.
+- Malformed abstraction output preserves completed ingestion and records a
+  warning so the next governed run can retry consolidation.
 
 ## Extensibility
 

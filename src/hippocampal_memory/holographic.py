@@ -41,7 +41,7 @@ def _require_numpy() -> None:
         raise RuntimeError("numpy is required for holographic operations")
 
 
-def encode_atom(word: str, dim: int = 1024) -> "np.ndarray":
+def encode_atom(word: str, dim: int = 4096) -> "np.ndarray":
     """Deterministic phase vector via SHA-256 counter blocks.
 
     Uses hashlib (not numpy RNG) for cross-platform reproducibility.
@@ -109,7 +109,7 @@ def similarity(a: "np.ndarray", b: "np.ndarray") -> float:
     return float(np.mean(np.cos(a - b)))
 
 
-def encode_text(text: str, dim: int = 1024) -> "np.ndarray":
+def encode_text(text: str, dim: int = 4096) -> "np.ndarray":
     """Bag-of-words: bundle of atom vectors for each token.
 
     Tokenizes by lowercasing, splitting on whitespace, and stripping
@@ -130,7 +130,7 @@ def encode_text(text: str, dim: int = 1024) -> "np.ndarray":
     return bundle(*atom_vectors)
 
 
-def encode_fact(content: str, entities: list[str], dim: int = 1024) -> "np.ndarray":
+def encode_fact(content: str, entities: list[str], dim: int = 4096) -> "np.ndarray":
     """Structured encoding: content bound to ROLE_CONTENT, each entity bound to ROLE_ENTITY, all bundled.
 
     Role vectors are reserved atoms: "__hrr_role_content__", "__hrr_role_entity__"
@@ -157,7 +157,7 @@ def encode_fact(content: str, entities: list[str], dim: int = 1024) -> "np.ndarr
 
 
 def phases_to_bytes(phases: "np.ndarray") -> bytes:
-    """Serialize phase vector to bytes. float64 tobytes — 8 KB at dim=1024."""
+    """Serialize a phase vector to float64 bytes (32 KiB at dim=4096)."""
     _require_numpy()
     return phases.tobytes()
 

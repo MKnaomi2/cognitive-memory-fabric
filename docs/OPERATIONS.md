@@ -63,7 +63,9 @@ settings and single-instance protection. The runner:
 for 30 minutes. It waits up to three hours for idle, wakes the machine when
 permitted, ignores duplicate launches, and has a two-hour execution limit.
 
-The legacy replay task should remain disabled after neural cutover.
+Keep the transcript replay task enabled when automatic conversation ingestion
+is desired. It is preemptible and checkpointed. Neural sleep is a separate
+downstream task: it replays accepted memories but does not ingest transcripts.
 
 ## Default Windows paths
 

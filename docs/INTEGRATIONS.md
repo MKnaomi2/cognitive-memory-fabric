@@ -137,7 +137,18 @@ A non-Hermes host can:
 6. use `VaultSynchronizer`, `SleepConsolidator`, or the telemetry app
    independently.
 
-The legacy replay worker additionally understands a SQLite transcript source
-with `sessions` and `messages` tables. It sends only user/assistant text to the
+The transcript replay worker additionally understands a SQLite source with
+`sessions` and `messages` tables. It sends only user/assistant text to the
 configured loopback Ollama endpoint; tool payloads and hidden reasoning are
 excluded.
+
+Transcript replay and neural sleep are complementary workers:
+
+- transcript replay ingests finalized conversations, checks citations, creates
+  memories, and proposes evidence-gated principles or identity memories;
+- neural sleep encodes already accepted memories as engrams and performs the
+  bounded NREM/REM-inspired circuit pass.
+
+Enabling neural sleep does not replace transcript ingestion. A complete Hermes
+deployment keeps the preemptible transcript worker enabled and schedules neural
+sleep separately during an exclusive idle GPU window.
