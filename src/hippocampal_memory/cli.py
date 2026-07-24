@@ -14,6 +14,19 @@ from .replay import DEFAULT_MODEL, DEFAULT_URL, HippocampusEngine, ReplayConfig
 from .sleep import SleepConsolidator
 from .telemetry import RemoteTelemetry, create_app, observatory_token, serve
 from .vault import VaultSynchronizer
+from .evaluation import (
+    aggregate_private_results,
+    CONDITIONS,
+    doctor as evaluation_doctor,
+    report_evaluation,
+    run_agent_trials,
+    run_evaluation,
+    verify_evaluation,
+)
+from .hermes_setup import doctor as hermes_doctor
+from .hermes_setup import install as hermes_install
+from .hermes_setup import uninstall as hermes_uninstall
+from .engram_migration import EngramMigrator
 
 
 def _parser(*, prog: str = "cognitive-memory") -> argparse.ArgumentParser:
@@ -68,6 +81,55 @@ def _parser(*, prog: str = "cognitive-memory") -> argparse.ArgumentParser:
     reactivate.add_argument("--cue", required=True)
     reactivate.add_argument("--prediction-error", type=float, default=0.0)
     reactivate.add_argument("--retrieval-seconds", type=float, default=0.0)
+    evaluate = commands.add_parser("evaluate")
+    evaluate_commands = evaluate.add_subparsers(dest="evaluate_command", required=True)
+    evaluate_commands.add_parser("doctor")
+    evaluate_run = evaluate_commands.add_parser("run")
+    evaluate_run.add_argument(
+        "--profile",
+        choices=["ci", "development", "holdout", "publication"],
+        default="ci",
+    )
+    evaluate_run.add_argument("--output", type=Path, required=True)
+    evaluate_run.add_argument(
+        "--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS)
+    )
+    evaluate_run.add_argument("--agent-results", type=Path)
+    evaluate_run.add_argument("--private-summary", type=Path)
+    evaluate_run.add_argument("--neural-weight", type=float, default=0.05)
+    evaluate_run.add_argument("--neural-margin-min", type=float, default=0.0)
+    evaluate_run.add_argument("--neural-activation-min", type=float, default=0.0)
+    agent_run = evaluate_commands.add_parser("agent-run")
+    agent_run.add_argument("--runner-config", type=Path, required=True)
+    agent_run.add_argument("--output", type=Path, required=True)
+    agent_run.add_argument("--model-label", required=True)
+    agent_run.add_argument(
+        "--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS)
+    )
+    agent_run.add_argument("--repeats", type=int, default=5)
+    agent_run.add_argument("--scenario-limit", type=int, default=20)
+    agent_run.add_argument(
+        "--neural-profile", choices=["tiny", "production"], default="production"
+    )
+    agent_run.add_argument("--append", action="store_true")
+    private_aggregate = evaluate_commands.add_parser("private-aggregate")
+    private_aggregate.add_argument("--input", type=Path, required=True)
+    private_aggregate.add_argument("--output", type=Path, required=True)
+    private_aggregate.add_argument("--minimum-cell-size", type=int, default=10)
+    evaluate_report = evaluate_commands.add_parser("report")
+    evaluate_report.add_argument("run_directory", type=Path)
+    evaluate_verify = evaluate_commands.add_parser("verify")
+    evaluate_verify.add_argument("run_directory", type=Path)
+    hermes = commands.add_parser("hermes")
+    hermes_commands = hermes.add_subparsers(dest="hermes_command", required=True)
+    hermes_commands.add_parser("doctor")
+    for command in ("install", "uninstall"):
+        action = hermes_commands.add_parser(command)
+        action.add_argument("--apply", action="store_true")
+    neural_migrate = commands.add_parser("neural-migrate")
+    neural_migrate.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    neural_migrate.add_argument("--limit", type=int, default=100)
+    neural_migrate.add_argument("--apply", action="store_true")
     return parser
 
 
@@ -77,6 +139,53 @@ def main(
     prog: str = "cognitive-memory",
 ) -> int:
     args = _parser(prog=prog).parse_args(argv)
+    if args.command == "evaluate":
+        if args.evaluate_command == "doctor":
+            result = evaluation_doctor()
+        elif args.evaluate_command == "run":
+            result = run_evaluation(
+                args.output,
+                profile=args.profile,
+                conditions=args.conditions,
+                agent_results=args.agent_results,
+                private_summary=args.private_summary,
+                neural_weight=args.neural_weight,
+                neural_margin_min=args.neural_margin_min,
+                neural_activation_min=args.neural_activation_min,
+            )
+        elif args.evaluate_command == "agent-run":
+            result = run_agent_trials(
+                args.runner_config,
+                args.output,
+                model_label=args.model_label,
+                conditions=args.conditions,
+                repeats=args.repeats,
+                scenario_limit=args.scenario_limit,
+                production_neural=args.neural_profile == "production",
+                append=args.append,
+            )
+        elif args.evaluate_command == "private-aggregate":
+            result = aggregate_private_results(
+                args.input,
+                args.output,
+                minimum_cell_size=args.minimum_cell_size,
+            )
+        elif args.evaluate_command == "report":
+            result = report_evaluation(args.run_directory)
+        else:
+            result = verify_evaluation(args.run_directory)
+        print(json.dumps(result, indent=2, default=str))
+        return 1 if result.get("status") in {"failed", "blocked"} else 0
+    if args.command == "hermes":
+        home = args.home or Path.home() / ".hermes"
+        if args.hermes_command == "doctor":
+            result = hermes_doctor(home)
+        elif args.hermes_command == "install":
+            result = hermes_install(home, apply=args.apply)
+        else:
+            result = hermes_uninstall(home, apply=args.apply)
+        print(json.dumps(result, indent=2, default=str))
+        return 0
     engine = HippocampusEngine(
         home=args.home,
         state_db=args.state_db,
@@ -112,6 +221,7 @@ def main(
                 geometry=circuit.geometry(),
                 recordings_root=args.recordings_root,
                 publisher_token=token,
+                neuron_connectivity=circuit.neuron_connectivity,
             )
             serve(app, port=args.port)
             result = {"status": "stopped"}
@@ -136,7 +246,9 @@ def main(
                     ],
                 }
             else:
-                result = synchronizer.apply(plan[: args.limit], max_mutations=args.limit)
+                result = synchronizer.apply(
+                    plan[: args.limit], max_mutations=args.limit
+                )
                 result["remaining"] = max(0, len(plan) - args.limit)
         elif args.command == "circuit-check":
             circuit = TrisynapticCircuit(device=args.device)
@@ -152,6 +264,14 @@ def main(
                 "last_region_spikes": probe["frames"][-1]["region_spikes"],
                 "time_cells": len(probe["time_cell_neurons"]),
             }
+        elif args.command == "neural-migrate":
+            migrator = EngramMigrator(engine.store, device=args.device)
+            plan = migrator.plan(args.limit)
+            result = (
+                migrator.apply(args.limit)
+                if args.apply
+                else {"status": "dry-run", "count": len(plan), "memories": plan}
+            )
         elif args.command in {
             "cognitive-status",
             "cognitive-backfill",
@@ -167,9 +287,7 @@ def main(
             elif args.command == "cognitive-backfill":
                 result = cognition.backfill_existing(max_memories=args.max_memories)
             elif args.command == "timeline":
-                result = {
-                    "memories": cognition.autobiographical_timeline(args.limit)
-                }
+                result = {"memories": cognition.autobiographical_timeline(args.limit)}
             elif args.command == "context":
                 result = cognition.reinstate_context(
                     memory_id=args.memory_id, cue=args.cue, limit=args.limit

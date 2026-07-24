@@ -54,6 +54,12 @@ test("keeps rendering, telemetry, and replay controls local", async () => {
   assert.match(observatory, /WebGPURenderer/);
   assert.match(observatory, /WebGLRenderer/);
   assert.match(observatory, /HMREC1\\n/);
+  assert.match(observatory, /Functional topology/);
+  assert.match(observatory, /Illustrative coordinates/);
+  assert.match(observatory, /Connection matrix/);
+  assert.match(observatory, /visual scaffolding/);
+  assert.match(observatory, /\/neuron\/\$\{selection\.id\}/);
+  assert.match(observatory, /Aggregate configured pathway/);
   assert.match(observatory, /EC:\s*8192/);
   assert.match(observatory, /DG:\s*16384/);
   assert.match(observatory, /CA3:\s*8192/);

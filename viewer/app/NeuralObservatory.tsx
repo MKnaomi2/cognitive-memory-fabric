@@ -6,16 +6,30 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Region = "EC" | "DG" | "CA3" | "CA1";
+type ViewMode = "functional" | "illustrative";
 type GeometryPayload = {
+  schema?: number;
   circuit_version: string;
   neuron_count: number;
   positions: number[][];
-  regions: Record<Region, { start: number; end: number }>;
+  layout?: {
+    kind: string;
+    authority: string;
+    distance_semantics: boolean;
+    default_view: string;
+    notice: string;
+  };
+  regions: Record<Region, { start: number; end: number; count?: number; role?: string }>;
   pathways: {
     name: string;
+    source: Region;
+    target: Region;
+    fanout: number;
     synapse_count: number;
     inhibitory: boolean;
     plastic: boolean;
+    recurrent: boolean;
+    rendering?: string;
   }[];
 };
 type Frame = {
@@ -32,6 +46,17 @@ type Selection = {
   id?: number | string;
   region?: Region;
 };
+type NeuronDetail = {
+  neuron_id: number;
+  region: Region;
+  incoming_total: number;
+  outgoing_total: number;
+  incoming: { neuron_id: number; weight: number; pathway: string; inhibitory: boolean }[];
+  outgoing: { neuron_id: number; weight: number; pathway: string; inhibitory: boolean }[];
+  incoming_truncated: boolean;
+  outgoing_truncated: boolean;
+  time_cell: { preferred_phase: number; width: number } | null;
+};
 
 const API = "http://127.0.0.1:8765";
 const REGION_COLOR: Record<Region, number> = {
@@ -46,6 +71,45 @@ const REGION_LABEL: Record<Region, string> = {
   CA3: "CA3 recurrent field",
   CA1: "CA1 output",
 };
+const REGION_ROLE: Record<Region, string> = {
+  EC: "Context and cortical input",
+  DG: "Sparse pattern separation",
+  CA3: "Recurrent association and pattern completion",
+  CA1: "Comparison and governed readout",
+};
+const FUNCTIONAL_CENTER: Record<Region, [number, number, number]> = {
+  EC: [-4.8, 0, 0],
+  DG: [-1.7, 0.35, 0.35],
+  CA3: [1.6, 0.35, 0],
+  CA1: [4.7, 0, -0.25],
+};
+
+function pathwayRegions(name: string): [Region, Region] {
+  if (name.endsWith("_INHIBITION")) {
+    const region = name.replace("_INHIBITION", "") as Region;
+    return [region, region];
+  }
+  const [source, target] = name.split("_") as [Region, Region];
+  return [source, target];
+}
+
+function functionalPosition(id: number, region: Region): [number, number, number] {
+  let seed = (id + 1) * 2654435761;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const theta = random() * Math.PI * 2;
+  const phi = Math.acos(2 * random() - 1);
+  const radius = Math.cbrt(random());
+  const center = FUNCTIONAL_CENTER[region];
+  const scale = region === "DG" ? [1.25, 1.05, 0.75] : [1.05, 0.85, 0.65];
+  return [
+    center[0] + Math.sin(phi) * Math.cos(theta) * radius * scale[0],
+    center[1] + Math.sin(phi) * Math.sin(theta) * radius * scale[1],
+    center[2] + Math.cos(phi) * radius * scale[2],
+  ];
+}
 
 function fallbackGeometry(): GeometryPayload {
   const sizes: Record<Region, number> = {
@@ -95,12 +159,25 @@ function fallbackGeometry(): GeometryPayload {
       ["CA3_CA3", 32768],
       ["CA3_CA1", 65536],
       ["EC_CA1", 32768],
-    ].map(([name, synapse_count]) => ({
+    ].map(([name, synapse_count]) => {
+      const [source, target] = pathwayRegions(String(name));
+      return {
       name: String(name),
+      source,
+      target,
+      fanout: Number(synapse_count) / sizes[source],
       synapse_count: Number(synapse_count),
       inhibitory: false,
       plastic: true,
-    })),
+      recurrent: source === target,
+    }}),
+    layout: {
+      kind: "fallback-illustrative",
+      authority: "visual-only",
+      distance_semantics: false,
+      default_view: "functional-topology",
+      notice: "Fallback coordinates are visual scaffolding only.",
+    },
   };
 }
 
@@ -110,6 +187,25 @@ function regionFor(id: number, regions: GeometryPayload["regions"]): Region {
       ([, range]) => id >= range.start && id < range.end,
     )?.[0] ?? "EC"
   );
+}
+
+function normalizeGeometry(payload: GeometryPayload): GeometryPayload {
+  return {
+    ...payload,
+    pathways: payload.pathways.map((pathway) => {
+      const [source, target] = pathwayRegions(pathway.name);
+      return {
+        ...pathway,
+        source: pathway.source ?? source,
+        target: pathway.target ?? target,
+        fanout:
+          pathway.fanout ??
+          pathway.synapse_count /
+            Math.max(1, payload.regions[source].end - payload.regions[source].start),
+        recurrent: pathway.recurrent ?? source === target,
+      };
+    }),
+  };
 }
 
 export default function NeuralObservatory() {
@@ -127,6 +223,10 @@ export default function NeuralObservatory() {
   const [playing, setPlaying] = useState(true);
   const [showSynapses, setShowSynapses] = useState(true);
   const [showInhibition, setShowInhibition] = useState(true);
+  const [showPathways, setShowPathways] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("functional");
+  const [neuronDetail, setNeuronDetail] = useState<NeuronDetail | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const [recording, setRecording] = useState("Live stream");
   const [recordings, setRecordings] = useState<{ name: string; bytes: number }[]>([]);
   const [recordedFrames, setRecordedFrames] = useState<Frame[]>([]);
@@ -137,6 +237,33 @@ export default function NeuralObservatory() {
   }, []);
 
   useEffect(() => {
+    if (window.localStorage.getItem("cmf-observatory-guide") !== "seen") {
+      queueMicrotask(() => setShowGuide(true));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selection.kind !== "neuron" || typeof selection.id !== "number") {
+      return;
+    }
+    let cancelled = false;
+    fetch(`${API}/neuron/${selection.id}`)
+      .then((response) => {
+        if (!response.ok) throw new Error("connectivity unavailable");
+        return response.json();
+      })
+      .then((payload: NeuronDetail) => {
+        if (!cancelled) setNeuronDetail(payload);
+      })
+      .catch(() => {
+        if (!cancelled) setNeuronDetail(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selection]);
+
+  useEffect(() => {
     let cancelled = false;
     fetch(`${API}/geometry`)
       .then((response) => {
@@ -144,7 +271,7 @@ export default function NeuralObservatory() {
         return response.json();
       })
       .then((payload: GeometryPayload) => {
-        if (!cancelled) setGeometry(payload);
+        if (!cancelled) setGeometry(normalizeGeometry(payload));
       })
       .catch(() => {
         if (!cancelled) setGeometry(fallbackGeometry());
@@ -267,9 +394,14 @@ export default function NeuralObservatory() {
     camera.position.set(0, 3.8, 12);
     const keys = new Set<string>();
 
+    const renderedPositions = geometry.positions.map((position, id) =>
+      viewMode === "functional"
+        ? functionalPosition(id, regionFor(id, geometry.regions))
+        : (position as [number, number, number]),
+    );
     const positions = new Float32Array(geometry.neuron_count * 3);
     const colors = new Float32Array(geometry.neuron_count * 3);
-    geometry.positions.forEach((position, id) => {
+    renderedPositions.forEach((position, id) => {
       positions.set(position, id * 3);
       const color = new THREE.Color(REGION_COLOR[regionFor(id, geometry.regions)]);
       colors.set([color.r * 0.58, color.g * 0.58, color.b * 0.58], id * 3);
@@ -296,9 +428,9 @@ export default function NeuralObservatory() {
       for (let id = range.start; id < range.end; id += 128) {
         center.add(
           new THREE.Vector3(
-            geometry.positions[id][0],
-            geometry.positions[id][1],
-            geometry.positions[id][2],
+            renderedPositions[id][0],
+            renderedPositions[id][1],
+            renderedPositions[id][2],
           ),
         );
       }
@@ -321,6 +453,63 @@ export default function NeuralObservatory() {
     });
     clusterGroup.visible = false;
     scene.add(clusterGroup);
+
+    const pathwayGroup = new THREE.Group();
+    geometry.pathways.forEach((pathway) => {
+      if (pathway.inhibitory && !showInhibition) return;
+      const source = new THREE.Vector3(...FUNCTIONAL_CENTER[pathway.source]);
+      const target = new THREE.Vector3(...FUNCTIONAL_CENTER[pathway.target]);
+      const color = pathway.inhibitory ? 0xff756d : REGION_COLOR[pathway.source];
+      if (pathway.source === pathway.target) {
+        if (pathway.inhibitory) {
+          const field = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(1.03, 2),
+            new THREE.MeshBasicMaterial({
+              color,
+              wireframe: true,
+              transparent: true,
+              opacity: 0.09,
+            }),
+          );
+          field.position.copy(source);
+          if (pathway.source === "DG") field.scale.set(1.2, 1.05, 0.78);
+          else field.scale.set(1.02, 0.86, 0.68);
+          field.userData.pathway = pathway.name;
+          pathwayGroup.add(field);
+          return;
+        }
+        const loop = new THREE.Mesh(
+          new THREE.TorusGeometry(1.15, 0.018, 6, 64),
+          new THREE.MeshBasicMaterial({
+            color,
+            transparent: true,
+            opacity: pathway.inhibitory ? 0.24 : 0.48,
+          }),
+        );
+        loop.position.copy(source);
+        loop.rotation.x = Math.PI / 2;
+        loop.userData.pathway = pathway.name;
+        pathwayGroup.add(loop);
+        return;
+      }
+      const direction = target.clone().sub(source);
+      const length = direction.length();
+      direction.normalize();
+      const arrow = new THREE.ArrowHelper(
+        direction,
+        source,
+        length,
+        color,
+        0.28,
+        0.15,
+      );
+      arrow.userData.pathway = pathway.name;
+      arrow.line.material.transparent = true;
+      arrow.line.material.opacity = pathway.inhibitory ? 0.3 : 0.52;
+      pathwayGroup.add(arrow);
+    });
+    pathwayGroup.visible = showPathways && viewMode === "functional";
+    scene.add(pathwayGroup);
 
     const lineGeometry = new THREE.BufferGeometry();
     lineGeometry.setAttribute(
@@ -419,8 +608,8 @@ export default function NeuralObservatory() {
               Math.min(visibleEdges.length, 4000) * 6,
             );
             visibleEdges.slice(0, 4000).forEach((edge, index) => {
-              const source = geometry.positions[edge[0]];
-              const target = geometry.positions[edge[1]];
+              const source = renderedPositions[edge[0]];
+              const target = renderedPositions[edge[1]];
               if (source && target) {
                 edgePositions.set([...source, ...target], index * 6);
               }
@@ -432,6 +621,7 @@ export default function NeuralObservatory() {
           }
         }
         lines.visible = showSynapses;
+        pathwayGroup.visible = showPathways && viewMode === "functional";
         const distance = camera.position.distanceTo(controls.target);
         points.visible = distance < 19;
         clusterGroup.visible = distance >= 19;
@@ -459,12 +649,18 @@ export default function NeuralObservatory() {
       pointMaterial.dispose();
       lineGeometry.dispose();
       lineMaterial.dispose();
+      pathwayGroup.traverse((object) => {
+        const item = object as THREE.Mesh;
+        item.geometry?.dispose();
+        if (Array.isArray(item.material)) item.material.forEach((value) => value.dispose());
+        else item.material?.dispose();
+      });
       renderer?.dispose();
       if (renderer?.domElement.parentElement === container) {
         container.removeChild(renderer.domElement);
       }
     };
-  }, [geometry, showInhibition, showSynapses]);
+  }, [geometry, showInhibition, showPathways, showSynapses, viewMode]);
 
   const selectRegion = useCallback(
     (region: Region) => setSelection({ kind: "neuron", region }),
@@ -516,14 +712,41 @@ export default function NeuralObservatory() {
             </div>
           </section>
           <section>
-            <p className="section-label">Layers</p>
+            <p className="section-label">View</p>
+            <div className="mode-switch" role="group" aria-label="Circuit layout">
+              <button
+                className={viewMode === "functional" ? "active" : ""}
+                onClick={() => setViewMode("functional")}
+              >
+                Functional
+              </button>
+              <button
+                className={viewMode === "illustrative" ? "active" : ""}
+                onClick={() => setViewMode("illustrative")}
+              >
+                Illustrative
+              </button>
+            </div>
+            <p className="layout-explainer">
+              {viewMode === "functional"
+                ? "Regions are separated for legibility. Arrows show implemented aggregate pathways."
+                : "Deterministic simulation coordinates. Distance and ring shape have no anatomical meaning."}
+            </p>
+            <label className="switch-row">
+              <input
+                type="checkbox"
+                checked={showPathways}
+                onChange={(event) => setShowPathways(event.target.checked)}
+              />
+              Aggregate pathways
+            </label>
             <label className="switch-row">
               <input
                 type="checkbox"
                 checked={showSynapses}
                 onChange={(event) => setShowSynapses(event.target.checked)}
               />
-              Active synapses
+              Measured active edges
             </label>
             <label className="switch-row">
               <input
@@ -534,6 +757,14 @@ export default function NeuralObservatory() {
               Inhibitory field
             </label>
           </section>
+          <section>
+            <p className="section-label">Pathway key</p>
+            <div className="truth-key">
+              <p><i className="key-line aggregate" />Aggregate configured pathway</p>
+              <p><i className="key-line measured" />Exact edge active in this frame</p>
+              <p><i className="key-line inhibitory" />Local inhibitory/recurrent field</p>
+            </div>
+          </section>
           <section className="controls-help">
             <p className="section-label">Navigation</p>
             <p>Drag to orbit · right-drag to pan · scroll to zoom</p>
@@ -543,14 +774,43 @@ export default function NeuralObservatory() {
 
         <div className="viewport">
           <div ref={mount} className="canvas-mount" />
+          <div className={`truth-banner ${viewMode}`}>
+            <strong>
+              {viewMode === "functional" ? "Functional topology" : "Illustrative coordinates"}
+            </strong>
+            <span>
+              Neuron positions are visual scaffolding · arrows are configured pathways ·
+              flashes and thin edges are measured telemetry
+            </span>
+            <button onClick={() => setShowGuide(true)}>How to read this</button>
+          </div>
           <div className="viewport-caption">
-            <span>{geometry?.circuit_version}</span>
+            <span>
+              {geometry?.circuit_version}
+              {(geometry?.schema ?? 1) < 2 ? " · legacy geometry schema" : " · schema 2"}
+            </span>
             <span>Step {frame?.step?.toLocaleString() ?? "—"}</span>
           </div>
           {connection !== "live" && (
             <div className="offline-notice">
               <strong>Telemetry service is offline</strong>
-              <span>Showing all 36,864 circuit neurons from the local layout.</span>
+              <span>Fallback geometry only; no measured firing or active edges.</span>
+            </div>
+          )}
+          {showGuide && (
+            <div className="guide-card" role="dialog" aria-label="How to read the neural observatory">
+              <p className="section-label">What is real here?</p>
+              <h2>Topology is authoritative. Geometry is not.</h2>
+              <ol>
+                <li><strong>Volumes</strong> group actual neuron IDs by implemented region.</li>
+                <li><strong>Large arrows</strong> summarize configured source→target pathways and synapse counts.</li>
+                <li><strong>Bright points and thin edges</strong> are exact activity measured in the selected frame.</li>
+                <li><strong>Illustrative mode</strong> exposes the deterministic coordinates used only to place points.</li>
+              </ol>
+              <button onClick={() => {
+                window.localStorage.setItem("cmf-observatory-guide", "seen");
+                setShowGuide(false);
+              }}>Understood</button>
             </div>
           )}
         </div>
@@ -569,16 +829,43 @@ export default function NeuralObservatory() {
               <h2>{selection.id !== undefined ? `#${selection.id}` : selection.region}</h2>
               <dl>
                 <div><dt>Region</dt><dd>{selection.region ?? "—"}</dd></div>
+                <div><dt>Function</dt><dd>{selection.region ? REGION_ROLE[selection.region] : "—"}</dd></div>
                 <div><dt>State</dt><dd>{typeof selection.id === "number" && frame?.active_neurons.includes(selection.id) ? "Firing" : "Quiescent"}</dd></div>
                 <div><dt>Phase</dt><dd>{frame?.phase ?? "Wake / live"}</dd></div>
                 <div><dt>Plasticity</dt><dd>Local STDP</dd></div>
+                {neuronDetail?.neuron_id === selection.id && (
+                  <>
+                    <div><dt>Incoming</dt><dd>{neuronDetail.incoming_total.toLocaleString()} exact edges</dd></div>
+                    <div><dt>Outgoing</dt><dd>{neuronDetail.outgoing_total.toLocaleString()} exact edges</dd></div>
+                    <div><dt>Time cell</dt><dd>{neuronDetail.time_cell ? `phase ${neuronDetail.time_cell.preferred_phase}` : "No"}</dd></div>
+                  </>
+                )}
               </dl>
+              {neuronDetail?.neuron_id === selection.id && (
+                <div className="edge-sample">
+                  <p className="section-label">Bounded adjacency sample</p>
+                  {[...neuronDetail.outgoing.slice(0, 3), ...neuronDetail.incoming.slice(0, 3)].map((edge, index) => (
+                    <p key={`${edge.pathway}-${edge.neuron_id}-${index}`}>
+                      <span>{edge.pathway}</span>
+                      <strong>#{edge.neuron_id}</strong>
+                      <em>{edge.weight.toFixed(3)}</em>
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <section className="flow">
-            <p className="section-label">Signal path</p>
-            <div className="flowline"><span>EC</span><i /><span>DG</span><i /><span>CA3</span><i /><span>CA1</span></div>
-            <p>Pattern separation → recurrent completion → cortical output</p>
+            <p className="section-label">Connection matrix</p>
+            <div className="pathway-matrix">
+              {geometry?.pathways.map((pathway) => (
+                <div key={pathway.name} className={pathway.inhibitory ? "inhibitory" : ""}>
+                  <span>{pathway.source} → {pathway.target}</span>
+                  <strong>{pathway.synapse_count.toLocaleString()}</strong>
+                  <em>{pathway.inhibitory ? "inhibitory" : pathway.recurrent ? "recurrent" : `fanout ${pathway.fanout}`}</em>
+                </div>
+              ))}
+            </div>
           </section>
           <section className="provenance">
             <p className="section-label">Provenance</p>

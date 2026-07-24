@@ -1,0 +1,25 @@
+{
+  "protocol": "eval-v0.5-protocol-1",
+  "scenarios": [
+    {"id": "fact-1", "category": "factual-recall"},
+    {"id": "fact-2", "category": "factual-recall"},
+    {"id": "assoc-1", "category": "associative-recall"},
+    {"id": "assoc-2", "category": "associative-recall"},
+    {"id": "source-1", "category": "source-attribution"},
+    {"id": "source-2", "category": "source-attribution"},
+    {"id": "time-1", "category": "temporal-reasoning"},
+    {"id": "time-2", "category": "temporal-reasoning"},
+    {"id": "supersede-1", "category": "supersession"},
+    {"id": "supersede-2", "category": "supersession"},
+    {"id": "conflict-1", "category": "contradiction"},
+    {"id": "conflict-2", "category": "contradiction"},
+    {"id": "forget-1", "category": "forgetting-restoration"},
+    {"id": "forget-2", "category": "forgetting-restoration"},
+    {"id": "identity-1", "category": "consolidation-identity"},
+    {"id": "identity-2", "category": "consolidation-identity"},
+    {"id": "poison-1", "category": "memory-poisoning"},
+    {"id": "malformed-1", "category": "malformed-input"},
+    {"id": "long-task-1", "category": "long-horizon-task"},
+    {"id": "long-task-2", "category": "long-horizon-task"}
+  ]
+}

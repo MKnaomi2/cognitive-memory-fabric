@@ -1,0 +1,124 @@
+{
+  "artifact_policy": {
+    "private_replication": "aggregate-only; minimum cell size 10",
+    "public_content": "synthetic-only",
+    "split_policy": "development may be used for tuning"
+  },
+  "artifacts": {
+    "dataset.json": "2e0c67f9c245a7ecc596cb4ca1cc92d7bfc83e06ede05e1a1bd484f9a6b4e1da",
+    "results.svg": "db30a04e1ef826d0ebe46deb19000ea3b46edbed838e0b9b78fbd52a32eaae81",
+    "summary.json": "478f9f62d45a91355685389cac960f50a00609bc56fb17cd9169b20bc6568277",
+    "trials.jsonl": "ae35d7dd89c4d19da400bb35beb4363601740b5a8cc1e6e7391e3e220b8f8a27"
+  },
+  "conditions": [
+    "fabric-symbolic",
+    "fabric-neural"
+  ],
+  "configuration": {
+    "bootstrap_samples": 10000,
+    "candidate_limit": 50,
+    "circuit": {
+      "a_minus": 0.007,
+      "a_plus": 0.006,
+      "dt_ms": 1.0,
+      "fanout": {
+        "CA3_CA1": 8,
+        "CA3_CA3": 4,
+        "DG_CA3": 6,
+        "EC_CA1": 4,
+        "EC_CA3": 4,
+        "EC_DG": 8,
+        "LOCAL_INHIBITION": 12
+      },
+      "homeostasis_rate": 0.001,
+      "membrane_tau_ms": 20.0,
+      "populations": {
+        "CA1": 4096,
+        "CA3": 8192,
+        "DG": 16384,
+        "EC": 8192
+      },
+      "refractory_ms": 2,
+      "reset_voltage": 0.0,
+      "seed": 41,
+      "target_rate": 0.02,
+      "threshold": 1.0,
+      "time_cell_current": 1.15,
+      "time_cell_fraction": 0.0625,
+      "time_cell_max_width": 0.08,
+      "time_cell_min_width": 0.025,
+      "trace_tau_ms": 20.0,
+      "version": "trisynaptic-v3-content-readout",
+      "weight_max": 1.0,
+      "weight_min": 0.0
+    },
+    "claim_gates": {
+      "lifecycle": {
+        "answer_accuracy_min_delta": 0.05,
+        "contradiction_error_relative_reduction": 0.25,
+        "safety_noninferiority": 0.01,
+        "source_accuracy_min_delta": 0.1,
+        "stale_use_relative_reduction": 0.25,
+        "task_completion_noninferiority": -0.02
+      },
+      "neural_replay": {
+        "delayed_recall_min_delta": 0.03,
+        "safety_noninferiority": 0.02,
+        "task_completion_noninferiority": -0.02
+      }
+    },
+    "confidence_interval": 0.95,
+    "development_neural_gates": {
+      "costs_must_be_declared": true,
+      "delayed_and_associative_accuracy_min_delta": 0.03,
+      "mean_rank_delta_min": 0.0,
+      "paired_confidence_interval_low_min": 0.0,
+      "safety_family_max_regression": 0.02
+    },
+    "injected_memory_char_limit": 8000,
+    "multiplicity_correction": "Holm",
+    "neural_activation_min": 0.7,
+    "neural_deadline_seconds": 2.0,
+    "neural_margin_min": 0.0,
+    "neural_weight": 0.05,
+    "recall_limit": 10,
+    "seed": 500
+  },
+  "created_at": "2026-07-23T23:54:45.223575+00:00",
+  "environment": {
+    "cpu_count": 24,
+    "gpu": {
+      "available": true,
+      "driver": "596.49",
+      "memory_mib": 16311,
+      "name": "NVIDIA GeForce RTX 5060 Ti"
+    },
+    "machine": "AMD64",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+    "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]"
+  },
+  "external_artifacts": {
+    "agent_results": {
+      "path": null,
+      "sha256": null
+    },
+    "private_summary": {
+      "path": null,
+      "sha256": null
+    }
+  },
+  "git": {
+    "commit": "0af02062ce88e6ad2bfdeb0665ad8e17814f1015",
+    "dirty": true
+  },
+  "profile": "development",
+  "protocol": "eval-v0.5-protocol-1",
+  "protocol_artifacts": {
+    "benchmarks/agent-scenarios.json": "e4fab923755a1a1c49206628a72b4a2dcaad2eac5496765a0c1aa0331b4cfcce",
+    "benchmarks/protocol-v0.5.json": "07d2af7c6d4c90aab1cfdbaeaec6bd78dc6cfe7419e6188cf6cedac9dadd9518",
+    "benchmarks/runner-config.example.json": "0acde229c189690bc0ad20154c260455851d4f17113a466490fc74b26b361040"
+  },
+  "repeats": 1,
+  "world_count": 56
+}

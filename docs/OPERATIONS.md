@@ -37,6 +37,9 @@ Global options include `--home`, `--state-db`, `--model`, and `--ollama-url`.
 | `timeline --limit N` | ordered autobiographical memories |
 | `context [--memory-id N] [--cue TEXT]` | reinstate an episodic context |
 | `reactivate --memory-id N --cue TEXT ...` | evaluate reconsolidation boundaries |
+| `evaluate doctor|agent-run|private-aggregate|run|report|verify` | preregistered agent/component ablation and artifact verification |
+| `hermes doctor|install|uninstall [--apply]` | reversible first-class provider configuration |
+| `neural-migrate --device cpu|cuda --limit N [--apply]` | explicit v2→v3 content-engram re-encoding |
 
 Always inspect a vault plan before `--apply`.
 
@@ -97,6 +100,10 @@ All runner paths are parameters and can be changed.
 
 # Actual circuit contract
 .\.venv-neural\Scripts\cognitive-memory circuit-check --device cuda
+
+# Reproducibility contract
+.\.venv-neural\Scripts\cognitive-memory evaluate run --profile ci --output .\evaluation-ci
+.\.venv-neural\Scripts\cognitive-memory evaluate verify .\evaluation-ci
 
 # Viewer
 Set-Location viewer

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cognitive-memory-fabric"
-version = "0.4.0"
+version = "0.5.0"
 description = "A local-first cognitive memory fabric for autonomous agents with provenance, temporal context, evidence-aware belief revision, reversible forgetting, Obsidian projections, and a hippocampal-inspired GPU replay engine"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,6 +40,9 @@ hippocampal-memory = "hippocampal_memory.cli:legacy_main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/hippocampal_memory"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"benchmarks" = "hippocampal_memory/benchmarks"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

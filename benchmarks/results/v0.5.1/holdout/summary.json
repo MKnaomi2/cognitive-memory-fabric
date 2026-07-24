@@ -1,0 +1,639 @@
+{
+  "agent_replication": {
+    "models": [
+      "digest-pinned-local",
+      "codex-terra-replication"
+    ],
+    "observed_model_counts": {},
+    "required_publication_trials_per_model": 500,
+    "status": "not-run",
+    "trial_count": 0
+  },
+  "claim_gates": {
+    "lifecycle": {
+      "answer_accuracy_min_delta": 0.05,
+      "contradiction_error_relative_reduction": 0.25,
+      "safety_noninferiority": 0.01,
+      "source_accuracy_min_delta": 0.1,
+      "stale_use_relative_reduction": 0.25,
+      "task_completion_noninferiority": -0.02
+    },
+    "neural_replay": {
+      "delayed_recall_min_delta": 0.03,
+      "safety_noninferiority": 0.02,
+      "task_completion_noninferiority": -0.02
+    }
+  },
+  "claims": {
+    "lifecycle_superiority": {
+      "passed": false,
+      "statement": "Lifecycle superiority was not demonstrated."
+    },
+    "neural_superiority": {
+      "passed": false,
+      "statement": "Neural superiority was not demonstrated."
+    }
+  },
+  "comparisons": {
+    "lifecycle": {
+      "answer_correct": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "contradiction_error": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "poison_success": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "source_correct": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "stale_use": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "task_complete": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      }
+    },
+    "neural_replay": {
+      "answer_correct": {
+        "delta": 0.017857,
+        "high": 0.053571,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "contradiction_error": {
+        "delta": -0.017857,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": -0.053571,
+        "p_value": 1.0
+      },
+      "poison_success": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "source_correct": {
+        "delta": 0.017857,
+        "high": 0.053571,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "stale_use": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "task_complete": {
+        "delta": 0.017857,
+        "high": 0.053571,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      }
+    },
+    "symbolic_replay": {
+      "answer_correct": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "contradiction_error": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "poison_success": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "source_correct": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "stale_use": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      },
+      "task_complete": {
+        "delta": 0.0,
+        "high": 0.0,
+        "holm_p": 1.0,
+        "low": 0.0,
+        "p_value": 1.0
+      }
+    }
+  },
+  "conditions": {
+    "basic": {
+      "answer_correct": 0.0,
+      "applied_neural_weight": 0.0,
+      "ca1_signature_size": 0.0,
+      "candidate_available": 0.0,
+      "candidate_count": 0.0,
+      "confidence_brier": 0.0,
+      "contradiction_error": 0.0,
+      "cpu_seconds": 0.0,
+      "cue_size": 0.0,
+      "delayed_recall": 0.0,
+      "fallback": 0.0,
+      "false_consolidation": 0.0,
+      "final_rank": 0.0,
+      "gpu_memory_mib": 0.0,
+      "gpu_seconds": 0.0,
+      "latency_ms": 0.0,
+      "latency_p95_ms": 0.0,
+      "manual_interventions": 0.0,
+      "max_negative_neural_score": 0.0,
+      "max_negative_symbolic_score": 0.0,
+      "neural_discrimination": 0.0,
+      "neural_score_margin": 0.0,
+      "peak_neural_score": 0.0,
+      "poison_success": 0.0,
+      "positive_neural_score": 0.0,
+      "positive_symbolic_score": 0.0,
+      "rank_delta": 0.0,
+      "recall_at_5": 0.0,
+      "reciprocal_rank": 0.0,
+      "rss_mib": 0.0,
+      "source_correct": 0.0,
+      "stale_use": 0.0,
+      "storage_bytes": 0.0,
+      "symbolic_rank": 0.0,
+      "symbolic_score_margin": 0.0,
+      "task_complete": 0.0,
+      "temporal_current_accuracy": 0.0,
+      "token_count": 0.0
+    },
+    "fabric": {
+      "answer_correct": 0.0,
+      "applied_neural_weight": 0.0,
+      "ca1_signature_size": 0.0,
+      "candidate_available": 0.0,
+      "candidate_count": 0.0,
+      "confidence_brier": 0.0,
+      "contradiction_error": 0.0,
+      "cpu_seconds": 0.0,
+      "cue_size": 0.0,
+      "delayed_recall": 0.0,
+      "fallback": 0.0,
+      "false_consolidation": 0.0,
+      "final_rank": 0.0,
+      "gpu_memory_mib": 0.0,
+      "gpu_seconds": 0.0,
+      "latency_ms": 0.0,
+      "latency_p95_ms": 0.0,
+      "manual_interventions": 0.0,
+      "max_negative_neural_score": 0.0,
+      "max_negative_symbolic_score": 0.0,
+      "neural_discrimination": 0.0,
+      "neural_score_margin": 0.0,
+      "peak_neural_score": 0.0,
+      "poison_success": 0.0,
+      "positive_neural_score": 0.0,
+      "positive_symbolic_score": 0.0,
+      "rank_delta": 0.0,
+      "recall_at_5": 0.0,
+      "reciprocal_rank": 0.0,
+      "rss_mib": 0.0,
+      "source_correct": 0.0,
+      "stale_use": 0.0,
+      "storage_bytes": 0.0,
+      "symbolic_rank": 0.0,
+      "symbolic_score_margin": 0.0,
+      "task_complete": 0.0,
+      "temporal_current_accuracy": 0.0,
+      "token_count": 0.0
+    },
+    "fabric-neural": {
+      "answer_correct": 0.982143,
+      "applied_neural_weight": 0.020536,
+      "ca1_signature_size": 40.946429,
+      "candidate_available": 1.0,
+      "candidate_count": 6.732143,
+      "confidence_brier": 0.019314,
+      "contradiction_error": 0.017857,
+      "cpu_seconds": 0.055804,
+      "cue_size": 26.732143,
+      "delayed_recall": 0.982143,
+      "fallback": 0.0,
+      "false_consolidation": 0.0,
+      "final_rank": 1.017857,
+      "gpu_memory_mib": 0.0,
+      "gpu_seconds": 0.0,
+      "latency_ms": 55.781089,
+      "latency_p95_ms": 130.138,
+      "manual_interventions": 0.0,
+      "max_negative_neural_score": 0.598246,
+      "max_negative_symbolic_score": 0.570587,
+      "neural_discrimination": 0.106141,
+      "neural_score_margin": 0.057209,
+      "peak_neural_score": 0.689612,
+      "poison_success": 0.0,
+      "positive_neural_score": 0.655455,
+      "positive_symbolic_score": 0.682842,
+      "rank_delta": 0.017857,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 0.991071,
+      "rss_mib": 0.0,
+      "source_correct": 0.982143,
+      "stale_use": 0.0,
+      "storage_bytes": 3092845.714286,
+      "symbolic_rank": 1.035714,
+      "symbolic_score_margin": 0.112255,
+      "task_complete": 0.982143,
+      "temporal_current_accuracy": 0.982143,
+      "token_count": 0.0
+    },
+    "fabric-symbolic": {
+      "answer_correct": 0.964286,
+      "applied_neural_weight": 0.0,
+      "ca1_signature_size": 0.0,
+      "candidate_available": 1.0,
+      "candidate_count": 6.732143,
+      "confidence_brier": 0.035029,
+      "contradiction_error": 0.035714,
+      "cpu_seconds": 0.025391,
+      "cue_size": 0.0,
+      "delayed_recall": 0.964286,
+      "fallback": 0.0,
+      "false_consolidation": 0.0,
+      "final_rank": 1.035714,
+      "gpu_memory_mib": 0.0,
+      "gpu_seconds": 0.0,
+      "latency_ms": 26.819661,
+      "latency_p95_ms": 95.27,
+      "manual_interventions": 0.0,
+      "max_negative_neural_score": 0.0,
+      "max_negative_symbolic_score": 0.0,
+      "neural_discrimination": 0.0,
+      "neural_score_margin": 0.0,
+      "peak_neural_score": 0.0,
+      "poison_success": 0.0,
+      "positive_neural_score": 0.0,
+      "positive_symbolic_score": 0.0,
+      "rank_delta": 0.0,
+      "recall_at_5": 1.0,
+      "reciprocal_rank": 0.982143,
+      "rss_mib": 0.0,
+      "source_correct": 0.964286,
+      "stale_use": 0.0,
+      "storage_bytes": 2959433.142857,
+      "symbolic_rank": 1.035714,
+      "symbolic_score_margin": 0.0,
+      "task_complete": 0.964286,
+      "temporal_current_accuracy": 0.964286,
+      "token_count": 0.0
+    },
+    "holographic": {
+      "answer_correct": 0.0,
+      "applied_neural_weight": 0.0,
+      "ca1_signature_size": 0.0,
+      "candidate_available": 0.0,
+      "candidate_count": 0.0,
+      "confidence_brier": 0.0,
+      "contradiction_error": 0.0,
+      "cpu_seconds": 0.0,
+      "cue_size": 0.0,
+      "delayed_recall": 0.0,
+      "fallback": 0.0,
+      "false_consolidation": 0.0,
+      "final_rank": 0.0,
+      "gpu_memory_mib": 0.0,
+      "gpu_seconds": 0.0,
+      "latency_ms": 0.0,
+      "latency_p95_ms": 0.0,
+      "manual_interventions": 0.0,
+      "max_negative_neural_score": 0.0,
+      "max_negative_symbolic_score": 0.0,
+      "neural_discrimination": 0.0,
+      "neural_score_margin": 0.0,
+      "peak_neural_score": 0.0,
+      "poison_success": 0.0,
+      "positive_neural_score": 0.0,
+      "positive_symbolic_score": 0.0,
+      "rank_delta": 0.0,
+      "recall_at_5": 0.0,
+      "reciprocal_rank": 0.0,
+      "rss_mib": 0.0,
+      "source_correct": 0.0,
+      "stale_use": 0.0,
+      "storage_bytes": 0.0,
+      "symbolic_rank": 0.0,
+      "symbolic_score_margin": 0.0,
+      "task_complete": 0.0,
+      "temporal_current_accuracy": 0.0,
+      "token_count": 0.0
+    }
+  },
+  "development_neural_gates": {
+    "costs_must_be_declared": true,
+    "delayed_and_associative_accuracy_min_delta": 0.03,
+    "mean_rank_delta_min": 0.0,
+    "paired_confidence_interval_low_min": 0.0,
+    "safety_family_max_regression": 0.02
+  },
+  "family_results": {
+    "associative-recall": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "contradiction": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "corrupted-cue": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "delayed-recall": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "event-segmentation": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "exact": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "forgetting": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "interference": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "paraphrase": {
+      "fabric-neural": {
+        "answer_correct": 0.75,
+        "harmed": 0,
+        "helped": 1,
+        "rank_delta": 0.25,
+        "reciprocal_rank": 0.875,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 0.5,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 0.75,
+        "trials": 4
+      }
+    },
+    "partial-cue": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "poison-resistance": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "reconsolidation": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "source-attribution": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    },
+    "temporal-order": {
+      "fabric-neural": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      },
+      "fabric-symbolic": {
+        "answer_correct": 1.0,
+        "harmed": 0,
+        "helped": 0,
+        "rank_delta": 0.0,
+        "reciprocal_rank": 1.0,
+        "trials": 4
+      }
+    }
+  },
+  "private_replication": {
+    "status": "not-run"
+  },
+  "protocol": "eval-v0.5-protocol-1",
+  "publication_eligible": false
+}

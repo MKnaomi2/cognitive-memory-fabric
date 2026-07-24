@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.5.0 — 2026-07-23
+
+### Evaluation and reproducibility
+
+- Added a frozen five-condition ablation protocol, deterministic synthetic
+  worlds, fixed agent scenarios, paired bootstrap intervals, cost/failure
+  telemetry, artifact hashes, verification, and mechanically gated claims.
+- Added content-derived EC cues, persisted CA1 signatures, checkpoint loading,
+  and frozen neural reranking of the same candidates used by symbolic recall.
+- Added symbolic replay as the direct non-neural ablation and fail-closed
+  symbolic fallback for unavailable or slow neural inference.
+- Added a first-class Hermes lifecycle provider with bounded, untrusted
+  provenance-aware recall and reversible configuration commands.
+- Added CI evaluation smoke runs and documented publication/private-replication
+  boundaries. Neural retrieval remains opt-in.
+- Added independent development and frozen-holdout challenge families,
+  before/after rank diagnostics, conservative neural activation gates, and a
+  frozen v0.5.1 candidate. The first holdout showed a small directional lift
+  without meeting the preregistered superiority gate.
+- Corrected the nested ablation so neural reranking starts from the same
+  symbolic replay ordering as the non-neural condition.
+- Reworked the Neural Observatory to distinguish functional topology,
+  illustrative coordinates, aggregate configured pathways, and exact measured
+  activity, with bounded live neuron adjacency.
+
 ## 0.4.0 — 2026-07-23
 
 ### Cognitive Memory Fabric rebrand

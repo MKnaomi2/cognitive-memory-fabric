@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -51,7 +52,8 @@ class SleepConsolidator:
                 """
                 SELECT f.fact_id, f.content, f.trust_score, f.salience_score,
                        f.memory_kind, f.context_id, f.event_id, f.sequence_index,
-                       b.engram_id, b.neuron_ids_json, t.memory_id time_binding_id,
+                       b.engram_id, b.neuron_ids_json, b.encoding_version,
+                       b.content_sha256, t.memory_id time_binding_id,
                        (SELECT window_id FROM reconsolidation_windows w
                         WHERE w.fact_id=f.fact_id AND w.status='labile'
                           AND w.closes_at>CURRENT_TIMESTAMP
@@ -93,11 +95,19 @@ class SleepConsolidator:
                             "recording": str(recording),
                         }
                     memory_id = int(row["fact_id"])
+                    content_hash = hashlib.sha256(
+                        str(row["content"]).encode()
+                    ).hexdigest()
                     if row["neuron_ids_json"]:
                         neurons = json.loads(row["neuron_ids_json"])
                     else:
-                        result = circuit.stimulate_engram(
-                            f"memory:{memory_id}",
+                        result = circuit.stimulate_content(
+                            str(row["content"]),
+                            context_key=str(
+                                row["context_id"]
+                                or row["event_id"]
+                                or f"memory:{memory_id}"
+                            ),
                             steps=30,
                             preempt=lease.should_preempt,
                         )
@@ -113,6 +123,9 @@ class SleepConsolidator:
                             neurons,
                             circuit_version=self.config.version,
                             strength=float(row["trust_score"]),
+                            encoding_version="content-v3",
+                            content_sha256=content_hash,
+                            ca1_signature=result["ca1_signature"],
                         )
                         encoded += 1
                         frames_written += self._write_frames(

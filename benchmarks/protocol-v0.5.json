@@ -1,0 +1,26 @@
+{
+  "protocol": "eval-v0.5-protocol-1",
+  "status": "frozen-before-holdout",
+  "conditions": [
+    "basic",
+    "holographic",
+    "fabric",
+    "fabric-symbolic",
+    "fabric-neural"
+  ],
+  "public_worlds": 100,
+  "agent_scenarios": 20,
+  "agent_repeats_per_condition": 5,
+  "reference_models": [
+    "digest-pinned-local",
+    "codex-terra-replication"
+  ],
+  "statistics": {
+    "method": "paired clustered bootstrap",
+    "samples": 10000,
+    "confidence": 0.95,
+    "multiplicity": "Holm correction on primary endpoints"
+  },
+  "failure_policy": "timeouts and runtime failures count as failed trials",
+  "privacy": "public artifacts are synthetic; private replication is aggregate-only with minimum cell size 10"
+}

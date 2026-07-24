@@ -39,6 +39,11 @@ local-first research system and is not designed for hostile multi-tenant use.
 - SQLite content is not encrypted by this package.
 - PyTorch checkpoints must be treated as trusted local artifacts; do not load
   checkpoints from untrusted sources.
+- Recalled memories are untrusted evidence. The Hermes provider wraps them with
+  an explicit warning and does not treat embedded instructions as authority.
+- Public evaluation artifacts contain synthetic content only. Private-history
+  replication exports aggregate cells of at least ten and must pass a
+  secret/private-content review before release.
 - The bearer token protects publication capability, not confidentiality from
   other same-user local processes.
 - Obsidian plugins execute with desktop-app privileges. Install only reviewed
