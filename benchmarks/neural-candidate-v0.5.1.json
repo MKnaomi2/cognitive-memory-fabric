@@ -1,0 +1,20 @@
+{
+  "candidate": "neural-readout-v0.5.1",
+  "frozen_after": "development",
+  "holdout_status": "not-run-at-freeze",
+  "cue_mode": "lexical",
+  "neural_weight": 0.05,
+  "neural_margin_min": 0.0,
+  "neural_activation_min": 0.7,
+  "query_steps": 24,
+  "encoding_steps": 16,
+  "development_result": {
+    "worlds": 56,
+    "symbolic_accuracy": 0.982143,
+    "neural_accuracy": 1.0,
+    "helped": 1,
+    "harmed": 0
+  },
+  "selection_note": "Frozen before reading holdout outcomes. The activation threshold is a development-selected safety gate.",
+  "claim_status": "candidate only; no superiority claim"
+}

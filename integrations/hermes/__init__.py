@@ -27,8 +27,10 @@ from hippocampal_memory.replay import HippocampusEngine  # noqa: E402
 from hippocampal_memory.vault import VaultSynchronizer  # noqa: E402
 
 from hippocampal_memory.adapters.hermes import create_engine  # noqa: E402
+from hippocampal_memory.provider import CognitiveMemoryProvider, ProviderConfig  # noqa: E402
 
 _engine: HippocampusEngine | None = None
+_provider: CognitiveMemoryProvider | None = None
 
 
 def _get_engine() -> HippocampusEngine:
@@ -87,7 +89,10 @@ def _query(args: dict, **_: Any) -> str:
             if all(term in str(row["content"]).casefold() for term in terms)
         ][:limit]
     elif query:
-        rows = engine.store.search_facts(query, limit=limit)
+        if _provider is not None:
+            rows = _provider.readout.search(query)["memories"][:limit]
+        else:
+            rows = engine.store.search_facts(query, limit=limit)
     else:
         rows = engine.store.list_facts(
             limit=limit, include_archived=include_archived
@@ -372,17 +377,43 @@ def _check() -> tuple[bool, str]:
 
 
 def register(ctx) -> None:
-    for name, schema, handler, emoji in (
-        ("hippocampal_remember", REMEMBER_SCHEMA, _remember, "🧠"),
-        ("hippocampal_query", QUERY_SCHEMA, _query, "🔎"),
-        ("hippocampal_evidence", EVIDENCE_SCHEMA, _evidence, "⚖️"),
-        ("hippocampal_archive", ARCHIVE_SCHEMA, _archive, "🗄️"),
-        ("hippocampal_vault_sync", VAULT_SCHEMA, _vault_sync, "🔗"),
-        ("hippocampal_context", CONTEXT_SCHEMA, _context, "🕰️"),
-        ("hippocampal_reactivate", REACTIVATE_SCHEMA, _reactivate, "♻️"),
-        ("hippocampal_reconsolidate", RECONSOLIDATE_SCHEMA, _reconsolidate, "🧬"),
-        ("hippocampal_cognitive_status", COGNITIVE_STATUS_SCHEMA, _cognitive_status, "🧭"),
-    ):
+    global _provider
+    engine = _get_engine()
+    values = {}
+    try:
+        import yaml
+
+        config_path = engine.store.db_path.parent / "config.yaml"
+        root = yaml.safe_load(config_path.read_text(encoding="utf-8-sig")) or {}
+        memory = root.get("memory", {})
+        if memory.get("provider") == "cognitive-memory-fabric":
+            values = memory
+    except Exception:
+        values = {}
+    provider = CognitiveMemoryProvider(
+        engine.store,
+        ProviderConfig(
+            replay_mode=str(values.get("replay_mode", "none")),
+            candidate_limit=int(values.get("candidate_limit", 50)),
+            recall_limit=int(values.get("recall_limit", 10)),
+            max_injected_chars=int(values.get("max_injected_chars", 8000)),
+            deadline_seconds=float(values.get("deadline_seconds", 2.0)),
+        ),
+        circuit=_load_circuit(engine, values),
+        tool_schemas=[
+            schema
+            for _, schema, _, _ in _TOOLS
+        ],
+        tool_handlers={
+            name: handler
+            for name, _, handler, _ in _TOOLS
+        },
+    )
+    _provider = provider
+    register_provider = getattr(ctx, "register_memory_provider", None)
+    if callable(register_provider):
+        register_provider(provider)
+    for name, schema, handler, emoji in _TOOLS:
         ctx.register_tool(
             name=name,
             toolset="hippocampal_memory",
@@ -391,3 +422,48 @@ def register(ctx) -> None:
             check_fn=_check,
             emoji=emoji,
         )
+
+
+def _load_circuit(engine, values):
+    if str(values.get("replay_mode", "none")) != "neural":
+        return None
+    try:
+        from hippocampal_memory.circuit import TrisynapticCircuit
+
+        row = engine.store._conn.execute(
+            """
+            SELECT path FROM neural_checkpoints
+            WHERE circuit_version='trisynaptic-v3-content-readout'
+            ORDER BY created_at DESC LIMIT 1
+            """
+        ).fetchone()
+        if row:
+            return TrisynapticCircuit.from_checkpoint(
+                row["path"], device=str(values.get("device", "cuda"))
+            )
+    except Exception:
+        return None
+    return None
+
+
+_TOOLS = (
+    ("hippocampal_remember", REMEMBER_SCHEMA, _remember, "🧠"),
+    ("hippocampal_query", QUERY_SCHEMA, _query, "🔎"),
+    ("hippocampal_evidence", EVIDENCE_SCHEMA, _evidence, "⚖️"),
+    ("hippocampal_archive", ARCHIVE_SCHEMA, _archive, "🗄️"),
+    ("hippocampal_vault_sync", VAULT_SCHEMA, _vault_sync, "🔗"),
+    ("hippocampal_context", CONTEXT_SCHEMA, _context, "🕰️"),
+    ("hippocampal_reactivate", REACTIVATE_SCHEMA, _reactivate, "♻️"),
+    (
+        "hippocampal_reconsolidate",
+        RECONSOLIDATE_SCHEMA,
+        _reconsolidate,
+        "🧬",
+    ),
+    (
+        "hippocampal_cognitive_status",
+        COGNITIVE_STATUS_SCHEMA,
+        _cognitive_status,
+        "🧭",
+    ),
+)

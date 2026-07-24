@@ -15,7 +15,8 @@ routes are disabled.
 | Route | Method | Authority |
 |---|---|---|
 | `/health` | GET | service/schema status |
-| `/geometry` | GET | actual neuron positions, region ranges, and pathway metadata |
+| `/geometry` | GET | visual coordinates, region ranges, and authoritative pathway metadata |
+| `/neuron/{id}` | GET | bounded exact incoming/outgoing adjacency from the live circuit |
 | `/snapshot` | GET | aggregate memory/conflict/event counts |
 | `/memory/{id}` | GET | one memory's bounded metadata, evidence, events, and engram IDs |
 | `/recordings` | GET | safe local recording names and byte sizes |
@@ -35,23 +36,42 @@ length, and a payload no larger than 16 MiB.
 
 ```json
 {
-  "schema": 1,
-  "circuit_version": "trisynaptic-v1",
+  "schema": 2,
+  "circuit_version": "trisynaptic-v3-content-readout",
   "neuron_count": 36864,
   "positions": [[-3.2, 0.4, 0.1]],
+  "layout": {
+    "kind": "illustrative-annular",
+    "authority": "visual-only",
+    "distance_semantics": false,
+    "default_view": "functional-topology"
+  },
   "regions": {
-    "EC": {"start": 0, "end": 8192}
+    "EC": {
+      "start": 0,
+      "end": 8192,
+      "count": 8192,
+      "role": "context and cortical input"
+    }
   },
   "pathways": [{
     "name": "EC_DG",
+    "source": "EC",
+    "target": "DG",
+    "fanout": 8,
     "synapse_count": 65536,
     "inhibitory": false,
-    "plastic": true
+    "plastic": true,
+    "recurrent": false
   }]
 }
 ```
 
-Geometry is separated from live frames so neuron positions are transferred once.
+Coordinates are deterministic visual scaffolding. Their ring shape, distance,
+and overlap have no anatomical or learned meaning. The source/target pathway
+graph and its synapse counts describe the implemented topology. Static arrows
+are aggregate summaries; only `active_edges` and `/neuron/{id}` expose exact
+edges. Geometry is separated from live frames so coordinates transfer once.
 
 ## Telemetry frame
 
@@ -92,13 +112,19 @@ or truncated payload. The writer defaults to a 512 MiB total bound.
 The React/Three.js viewer:
 
 - prefers `WebGPURenderer` and falls back to `WebGLRenderer`;
-- renders every actual neuron position at close and medium distance;
+- defaults to a functional layout with separated region volumes;
+- labels the coordinates as illustrative rather than anatomical;
+- offers the original annular coordinates only as an explicitly illustrative mode;
+- renders configured source/target pathways as aggregate arrows and recurrent loops;
+- distinguishes those summaries from exact measured active edges;
 - uses region clusters as distance-based level of detail;
 - colors EC, DG, CA3, and CA1 independently;
 - overlays bounded active pathways;
 - can include/exclude inhibitory activity;
 - supports orbit, pan, zoom, and WASD/QE free flight;
-- ray-picks neurons for inspection;
+- ray-picks neurons and requests bounded exact adjacency for inspection;
+- shows a pathway connection matrix with fanout and synapse totals;
+- provides a first-use guide explaining what is measured versus illustrative;
 - displays current phase, circuit step, per-region spikes, and active count; and
 - reads `.hmrec` recordings into a scrub/play timeline.
 

@@ -2,6 +2,7 @@
 
 from .replay import HippocampusEngine, ReplayConfig, ReplayPreempted
 from .retrieval import FactRetriever
+from .readout import MemoryReadout, ReadoutConfig
 from .coordination import MemoryCoordinator, MemoryEvent, RevisionConflict
 from .circuit import CircuitConfig, TrisynapticCircuit
 from .cognition import CognitiveMemorySystem
@@ -16,12 +17,14 @@ __all__ = [
     "MemoryCoordinator",
     "MemoryEvent",
     "MemoryStore",
+    "MemoryReadout",
     "ReplayConfig",
     "ReplayPreempted",
+    "ReadoutConfig",
     "RevisionConflict",
     "VaultProjector",
     "VaultSynchronizer",
     "TrisynapticCircuit",
 ]
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"

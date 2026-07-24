@@ -132,6 +132,21 @@ class MemoryCoordinator:
         self.store = store
         with store._lock:
             store._conn.executescript(_SCHEMA)
+            columns = {
+                row[1]
+                for row in store._conn.execute(
+                    "PRAGMA table_info(engram_bindings)"
+                ).fetchall()
+            }
+            for name, declaration in {
+                "encoding_version": "TEXT NOT NULL DEFAULT 'memory-id-v2'",
+                "content_sha256": "TEXT NOT NULL DEFAULT ''",
+                "ca1_signature_json": "TEXT NOT NULL DEFAULT '[]'",
+            }.items():
+                if name not in columns:
+                    store._conn.execute(
+                        f"ALTER TABLE engram_bindings ADD COLUMN {name} {declaration}"
+                    )
 
     def current_revision(self, aggregate_id: str) -> int:
         with self.store._lock:
@@ -266,24 +281,42 @@ class MemoryCoordinator:
         circuit_version: str,
         engram_id: str | None = None,
         strength: float = 0.5,
+        encoding_version: str = "memory-id-v2",
+        content_sha256: str = "",
+        ca1_signature: Iterable[int] = (),
     ) -> str:
         memory_id, engram_id = str(memory_id), engram_id or str(uuid.uuid4())
         ids = sorted({int(value) for value in neuron_ids})
+        ca1_ids = sorted({int(value) for value in ca1_signature})
         strength = max(0.0, min(1.0, float(strength)))
         with self.store._lock:
             self.store._conn.execute(
                 """
                 INSERT INTO engram_bindings (
                     memory_id, engram_id, circuit_version, neuron_ids_json,
-                    strength, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    strength, created_at, encoding_version, content_sha256,
+                    ca1_signature_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(memory_id) DO UPDATE SET
                     engram_id=excluded.engram_id,
                     circuit_version=excluded.circuit_version,
                     neuron_ids_json=excluded.neuron_ids_json,
-                    strength=excluded.strength
+                    strength=excluded.strength,
+                    encoding_version=excluded.encoding_version,
+                    content_sha256=excluded.content_sha256,
+                    ca1_signature_json=excluded.ca1_signature_json
                 """,
-                (memory_id, engram_id, circuit_version, _json(ids), strength, _now()),
+                (
+                    memory_id,
+                    engram_id,
+                    circuit_version,
+                    _json(ids),
+                    strength,
+                    _now(),
+                    encoding_version,
+                    content_sha256,
+                    _json(ca1_ids),
+                ),
             )
         self.append_event(
             f"memory:{memory_id}",
@@ -293,6 +326,8 @@ class MemoryCoordinator:
                 "circuit_version": circuit_version,
                 "neuron_count": len(ids),
                 "strength": strength,
+                "encoding_version": encoding_version,
+                "ca1_signature_count": len(ca1_ids),
             },
             actor_type="system",
             actor_ref="hippocampal-circuit",

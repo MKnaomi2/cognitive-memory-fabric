@@ -19,6 +19,8 @@ The core invariants are:
 9. Temporal order is explicit rather than inferred from row insertion.
 10. Retrieval-induced lability is gated, time-bounded, and version-preserving.
 11. Operational self-recollection metadata never implies consciousness.
+12. Neural query inference is frozen, candidate-bounded, and fails closed to
+    symbolic retrieval.
 
 ## Authority boundaries
 
@@ -29,7 +31,7 @@ The core invariants are:
 | Obsidian projection | human-readable notes and user-authored `Human notes` | confidence, status, archival decisions, or event history |
 | Neural circuit | voltage, spikes, traces, thresholds, weights, geometry | memory text, evidence policy, or lifecycle status |
 | Observatory | visualization and bounded provenance summaries | any lifecycle write |
-| Hermes adapter | agent-facing commands that invoke core policy | independent storage or policy |
+| Hermes provider | bounded automatic recall and agent-facing commands that invoke core policy | independent storage or policy |
 
 ## Write path
 
@@ -98,13 +100,26 @@ keys, validity windows, relevance/salience/source quality, `pinned`,
 | `memory_events` | append-only, attributed, revisioned, payload-hashed events |
 | `vault_registry` | stable memory→note identity/path and last synchronized revision/hash |
 | `sync_ledger` | direction, revisions, before/after hashes, outcome, and detail |
-| `engram_bindings` | memory→engram identity, circuit version, neuron IDs, strength, replay count |
+| `engram_bindings` | memory→engram identity, content/circuit version, neuron and CA1 signature IDs, strength, replay count |
 | `neural_checkpoints` | circuit version, phase, path, SHA-256, event revision, and metadata |
 | `time_cell_bindings` | memory/context/sequence to simulated EC/CA1 temporal assembly |
 
 Event payloads use deterministic compact JSON before hashing. Events include
 actor type/reference, source URI, causation ID, correlation ID, UTC occurrence
 time, schema version, aggregate ID, event type, and revision.
+
+## Read path
+
+Hermes prefetch obtains at most 50 candidates from the symbolic retriever,
+applies lifecycle exclusion and trust, and injects at most 10 entries or 8,000
+characters. In symbolic-replay mode, replay strength may rerank that pool. In
+neural mode, a content-derived EC cue produces a plasticity-disabled CA1
+response, which is compared with persisted candidate signatures. A two-second
+deadline or missing/incompatible checkpoint returns the symbolic ordering and
+records a fallback.
+
+Returned content carries provenance, confidence, validity, status, and
+supersession metadata inside an untrusted-evidence boundary.
 
 ## Memory and projection states
 

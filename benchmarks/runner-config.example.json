@@ -1,0 +1,14 @@
+{
+  "command": [
+    "C:\\Users\\AJ\\AppData\\Local\\hermes\\hermes-agent\\.venv\\Scripts\\python.exe",
+    "-m",
+    "hermes_cli.main",
+    "--ignore-rules",
+    "-z",
+    "{prompt}",
+    "--usage-file",
+    "{usage_file}"
+  ],
+  "cwd": "C:\\Hermes\\Bootstrap",
+  "timeout_seconds": 2400
+}

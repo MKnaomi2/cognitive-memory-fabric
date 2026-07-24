@@ -7,7 +7,8 @@ hippocampal trisynaptic circuit and sleep consolidation. It provides local
 plasticity, replay, inspectable activity, and durable checkpoints. It is not a
 biophysical simulation or a claim that digital engrams reproduce human memory.
 
-Circuit version `trisynaptic-v2-time-cells` adds context-remapped scalar
+Circuit version `trisynaptic-v3-content-readout` adds content-derived entorhinal
+cues and a frozen CA1 retrieval readout while retaining context-remapped scalar
 temporal receptive fields to deterministic subsets of EC and CA1. Active IDs,
 preferred phases, widths, encoded/decoded elapsed phase, and
 memory/context/sequence bindings are inspectable. Alternating NREM packets
@@ -68,7 +69,9 @@ inhibition and threshold adaptation prevent uncontrolled activity.
 
 ## Engram encoding
 
-An engram cue is deterministic for `memory:<id>`:
+An engram cue is derived deterministically from normalized content tokens.
+Each token hashes into a sparse EC assembly; overlapping content therefore
+shares cue cells without retaining query text in the checkpoint metadata:
 
 1. SHA-256 supplies a stable per-memory random seed.
 2. Approximately 1.2% of EC neurons are selected, with a minimum of eight.
@@ -142,3 +145,15 @@ session metadata.
 - individual recorded/ingested frames are capped at 16 MiB;
 - recording creation is exclusive (`xb`) to prevent silent overwrite; and
 - checkpoint files are content-hashed.
+
+## Frozen retrieval readout
+
+Encoding persists a versioned CA1 spike signature and content hash with each
+engram. Query inference uses a content-derived EC cue with plasticity disabled,
+then scores overlap between the query CA1 response and each candidate signature.
+It can only rerank the same bounded pool returned by symbolic retrieval.
+
+Missing, incompatible, corrupt, or over-deadline neural state fails closed to
+symbolic ranking. Fallbacks are observable and count in evaluation results.
+Version-2 recordings remain viewable, but version-2 and version-3 checkpoints
+must never be mixed in an evaluation.

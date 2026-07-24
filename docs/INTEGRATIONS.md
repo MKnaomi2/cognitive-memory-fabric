@@ -107,8 +107,27 @@ and enable `hermes-neural-observatory` in the vault's community plugin list.
 
 ## Hermes Agent adapter
 
-`integrations/hermes/` is deliberately thin. It imports the standalone package
-and registers nine tools:
+`integrations/hermes/` is deliberately thin. It imports the standalone package,
+registers a first-class `CognitiveMemoryProvider`, and retains nine tools.
+
+The provider participates in Hermes initialization, system-prompt policy,
+bounded prefetch, explicit durable-turn synchronization, and shutdown. Prefetch
+uses at most 50 candidates, injects at most 10 memories or 8,000 characters,
+and has a two-second deadline. Returned content is wrapped as untrusted evidence
+with provenance, confidence, validity, conflict, and supersession state.
+Recalled context and tool output are not automatically written back.
+
+Provider installation is dry-run by default and backs up `config.yaml` before
+an applied change:
+
+```powershell
+cognitive-memory hermes install
+cognitive-memory hermes install --apply
+cognitive-memory hermes doctor
+cognitive-memory hermes uninstall --apply
+```
+
+The explicit tool surface is:
 
 The `hippocampal_*` identifiers below are retained compatibility interfaces
 from the project's former name. They operate on the Cognitive Memory Fabric;

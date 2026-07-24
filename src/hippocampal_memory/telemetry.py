@@ -13,7 +13,7 @@ import time
 import urllib.request
 from collections import deque
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from .coordination import MemoryCoordinator
 from .store import MemoryStore
@@ -183,6 +183,7 @@ def create_app(
     hub: TelemetryHub | None = None,
     recordings_root: str | Path | None = None,
     publisher_token: str | None = None,
+    neuron_connectivity: Callable[[int], dict[str, Any]] | None = None,
 ) -> Any:
     """Create a viewer API with no memory-lifecycle write endpoints."""
     if FastAPI is None or msgpack is None:
@@ -206,13 +207,27 @@ def create_app(
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
-        return {"status": "ok", "transport": "loopback", "schema": 1}
+        return {
+            "status": "ok",
+            "transport": "loopback",
+            "telemetry_schema": 1,
+            "geometry_schema": geometry.get("schema") if geometry else None,
+        }
 
     @app.get("/geometry")
     async def circuit_geometry() -> dict[str, Any]:
         if geometry is None:
             raise HTTPException(503, "circuit geometry is not loaded")
         return geometry
+
+    @app.get("/neuron/{neuron_id}")
+    async def neuron(neuron_id: int) -> dict[str, Any]:
+        if neuron_connectivity is None:
+            raise HTTPException(503, "live circuit connectivity is not loaded")
+        try:
+            return neuron_connectivity(neuron_id)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
 
     @app.get("/snapshot")
     async def snapshot() -> dict[str, Any]:

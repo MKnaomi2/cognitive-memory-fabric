@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -55,7 +56,7 @@ class CircuitConfig:
     time_cell_max_width: float = 0.080
     time_cell_current: float = 1.15
     seed: int = 41
-    version: str = "trisynaptic-v2-time-cells"
+    version: str = "trisynaptic-v3-content-readout"
 
     def validate(self) -> None:
         if set(self.populations) != {"EC", "DG", "CA3", "CA1"}:
@@ -164,7 +165,8 @@ class TrisynapticCircuit:
         if source == destination:
             targets = torch.where(
                 targets == sources,
-                target_start + ((targets - target_start + 1) % (target_end - target_start)),
+                target_start
+                + ((targets - target_start + 1) % (target_end - target_start)),
                 targets,
             )
         # Sparse fan-out needs a strong unitary EPSP so two temporally aligned
@@ -231,9 +233,7 @@ class TrisynapticCircuit:
         for region in ("EC", "CA1"):
             start, end = self._range(region)
             count = max(16, int((end - start) * self.config.time_cell_fraction))
-            selected.append(
-                torch.linspace(start, end - 1, count, dtype=torch.long)
-            )
+            selected.append(torch.linspace(start, end - 1, count, dtype=torch.long))
             preferred_by_region.append(torch.linspace(0.0, 1.0, count))
         ids = torch.cat(selected).to(self.device)
         preferred = torch.cat(preferred_by_region).to(self.device)
@@ -270,6 +270,127 @@ class TrisynapticCircuit:
         return sorted(
             {int(self.time_cell_ids[index].detach().cpu().item()) for index in indices}
         )
+
+    @staticmethod
+    def content_tokens(text: str) -> tuple[str, ...]:
+        """Return a bounded, stable lexical representation without retaining text."""
+        return tuple(
+            sorted(
+                {
+                    token
+                    for token in re.findall(r"[a-z0-9][a-z0-9_-]+", text.casefold())
+                    if len(token) > 1
+                }
+            )[:256]
+        )
+
+    def semantic_cue(self, vector: list[float], *, target_cells: int = 96) -> list[int]:
+        """Project an externally produced local embedding into a sparse EC assembly."""
+        start, end = self._range("EC")
+        scores: dict[int, float] = {}
+        for dimension, value in enumerate(vector[:8192]):
+            if not math.isfinite(value) or value == 0:
+                continue
+            digest = hashlib.sha256(f"ec-semantic-v1:{dimension}".encode()).digest()
+            for offset in range(2):
+                cell = start + int.from_bytes(
+                    digest[offset * 4 : offset * 4 + 4], "little"
+                ) % (end - start)
+                sign = 1.0 if digest[16 + offset] & 1 else -1.0
+                scores[cell] = scores.get(cell, 0.0) + sign * float(value)
+        return [
+            cell
+            for cell, _ in sorted(
+                scores.items(), key=lambda item: (-abs(item[1]), item[0])
+            )[: max(8, min(int(target_cells), 1024))]
+        ]
+
+    def content_cue(
+        self,
+        text: str,
+        *,
+        cells_per_token: int = 4,
+        mode: str = "lexical",
+        semantic_vector: list[float] | None = None,
+    ) -> list[int]:
+        """Map lexical and/or externally embedded content to a sparse EC assembly."""
+        if mode not in {"lexical", "semantic", "hybrid"}:
+            raise ValueError("cue mode must be lexical, semantic, or hybrid")
+        if mode == "semantic" and semantic_vector is None:
+            raise ValueError("semantic cue mode requires a local embedding vector")
+        start, end = self._range("EC")
+        selected: set[int] = set()
+        if mode in {"lexical", "hybrid"}:
+            tokens = self.content_tokens(text) or ("__empty__",)
+            for token in tokens:
+                digest = hashlib.sha256(f"ec-v3:{token}".encode()).digest()
+                for offset in range(max(1, cells_per_token)):
+                    position = int.from_bytes(
+                        digest[(offset * 4) % 28 : (offset * 4) % 28 + 4], "little"
+                    )
+                    selected.add(start + position % (end - start))
+        if mode in {"semantic", "hybrid"} and semantic_vector is not None:
+            selected.update(self.semantic_cue(semantic_vector))
+        return sorted(selected)
+
+    def stimulate_content(
+        self,
+        text: str,
+        *,
+        context_key: str = "",
+        steps: int = 40,
+        plastic: bool = True,
+        preempt: Callable[[], bool] | None = None,
+        cue_mode: str = "lexical",
+        semantic_vector: list[float] | None = None,
+    ) -> dict[str, Any]:
+        """Encode or query content using a token-derived EC cue."""
+        selected = torch.as_tensor(
+            self.content_cue(text, mode=cue_mode, semantic_vector=semantic_vector),
+            dtype=torch.long,
+            device=self.device,
+        )
+        peak: set[int] = set()
+        ca1: set[int] = set()
+        region_peak: dict[str, set[int]] = {region: set() for region in self.offsets}
+        frames = []
+        ca1_start, ca1_end = self._range("CA1")
+        key = context_key or hashlib.sha256(text.encode()).hexdigest()
+        for index in range(steps):
+            if preempt and preempt():
+                return {
+                    "status": "preempted",
+                    "steps": index,
+                    "engram_neurons": sorted(peak),
+                    "ca1_signature": sorted(ca1),
+                    "frames": frames,
+                }
+            current = self.temporal_current(index, steps, context_key=key)
+            if index < 8 or index % 11 == 0:
+                current[selected] = 1.35
+            frame = self.step(current, plastic=plastic)
+            active = {int(value) for value in frame["active_neurons"]}
+            peak.update(active)
+            for region, (start, end) in self.offsets.items():
+                region_peak[region].update(
+                    value for value in active if start <= value < end
+                )
+            ca1.update(value for value in active if ca1_start <= value < ca1_end)
+            frames.append(frame)
+        return {
+            "status": "completed",
+            "steps": steps,
+            "engram_neurons": sorted(peak),
+            "ca1_signature": sorted(ca1),
+            "cue_mode": cue_mode,
+            "cue_neurons": selected.detach().cpu().tolist(),
+            "cue_size": int(selected.numel()),
+            "region_active_neurons": {
+                region: len(values) for region, values in region_peak.items()
+            },
+            "time_cell_neurons": self.time_cell_assignment(key),
+            "frames": frames,
+        }
 
     def decode_elapsed_phase(self) -> float | None:
         """Decode elapsed phase from the currently firing time-cell population."""
@@ -332,14 +453,11 @@ class TrisynapticCircuit:
                     * self.post_trace[pathway.post]
                 )
                 pathway.weight.add_(modulation * (potentiation - depression))
-                pathway.weight.clamp_(
-                    self.config.weight_min, self.config.weight_max
-                )
+                pathway.weight.clamp_(self.config.weight_min, self.config.weight_max)
 
         self.rate_ema.mul_(0.995).add_(next_spikes.float(), alpha=0.005)
         self.thresholds.add_(
-            self.config.homeostasis_rate
-            * (self.rate_ema - self.config.target_rate)
+            self.config.homeostasis_rate * (self.rate_ema - self.config.target_rate)
         ).clamp_(0.6, 1.8)
         self.spikes = next_spikes
         self.step_index += 1
@@ -361,14 +479,19 @@ class TrisynapticCircuit:
             mask = active_set[pathway.pre] | active_set[pathway.post]
             selected = torch.nonzero(mask, as_tuple=False).flatten()[:edge_limit]
             if selected.numel():
-                triples = torch.stack(
-                    (
-                        pathway.pre[selected],
-                        pathway.post[selected],
-                        pathway.weight[selected],
-                    ),
-                    dim=1,
-                ).detach().cpu().tolist()
+                triples = (
+                    torch.stack(
+                        (
+                            pathway.pre[selected],
+                            pathway.post[selected],
+                            pathway.weight[selected],
+                        ),
+                        dim=1,
+                    )
+                    .detach()
+                    .cpu()
+                    .tolist()
+                )
                 edges.extend(
                     (int(pre), int(post), round(float(weight), 5), pathway.name)
                     for pre, post, weight in triples
@@ -376,9 +499,7 @@ class TrisynapticCircuit:
             if len(edges) >= edge_limit:
                 break
         counts = {
-            region: int(
-                self.spikes[start:end].sum().detach().cpu().item()
-            )
+            region: int(self.spikes[start:end].sum().detach().cpu().item())
             for region, (start, end) in self.offsets.items()
         }
         active_time_cells = active[self.time_cell_mask[active]]
@@ -458,9 +579,7 @@ class TrisynapticCircuit:
             if preempt and preempt():
                 return {"status": "preempted", "phase": phase, "frames": frames}
             temporal_index = (
-                cycles - index - 1
-                if phase == "nrem" and (index // 25) % 2
-                else index
+                cycles - index - 1 if phase == "nrem" and (index // 25) % 2 else index
             )
             current = self.temporal_current(
                 temporal_index, cycles, context_key=context_key
@@ -527,26 +646,89 @@ class TrisynapticCircuit:
             "circuit_version": self.config.version,
         }
 
+    @classmethod
+    def from_checkpoint(
+        cls, path: str | Path, *, device: str | None = None
+    ) -> "TrisynapticCircuit":
+        """Load a same-version checkpoint and fail closed on incompatible state."""
+        state = torch.load(Path(path), map_location=device or "cpu", weights_only=False)
+        config = CircuitConfig(**state["config"])
+        circuit = cls(config, device=device)
+        if config.version != CircuitConfig().version:
+            raise ValueError("checkpoint circuit version is incompatible")
+        circuit.step_index = int(state["step_index"])
+        for name in ("voltage", "thresholds", "rate_ema"):
+            setattr(circuit, name, state[name].to(circuit.device))
+        by_name = {item.name: item for item in circuit.pathways}
+        for name, payload in state["pathways"].items():
+            pathway = by_name[name]
+            pathway.pre = payload["pre"].to(circuit.device)
+            pathway.post = payload["post"].to(circuit.device)
+            pathway.weight = payload["weight"].to(circuit.device)
+        return circuit
+
     def geometry(self) -> dict[str, Any]:
-        """Static actual-neuron geometry, separated from live telemetry."""
-        return {
-            "schema": 1,
-            "circuit_version": self.config.version,
-            "neuron_count": self.neuron_count,
-            "positions": self.positions.tolist(),
-            "regions": {
-                name: {"start": start, "end": end}
-                for name, (start, end) in self.offsets.items()
-            },
-            "pathways": [
+        """Static circuit description, with visual layout semantics made explicit."""
+        pathway_regions = {
+            "EC_DG": ("EC", "DG"),
+            "DG_CA3": ("DG", "CA3"),
+            "EC_CA3": ("EC", "CA3"),
+            "CA3_CA3": ("CA3", "CA3"),
+            "CA3_CA1": ("CA3", "CA1"),
+            "EC_CA1": ("EC", "CA1"),
+        }
+        region_roles = {
+            "EC": "context and cortical input",
+            "DG": "sparse pattern separation",
+            "CA3": "recurrent association and pattern completion",
+            "CA1": "comparison and readout",
+        }
+        pathways = []
+        for item in self.pathways:
+            if item.name.endswith("_INHIBITION"):
+                source = target = item.name.removesuffix("_INHIBITION")
+            else:
+                source, target = pathway_regions[item.name]
+            pathways.append(
                 {
                     "name": item.name,
+                    "source": source,
+                    "target": target,
+                    "fanout": int(item.pre.numel() // self.config.populations[source]),
                     "synapse_count": int(item.pre.numel()),
                     "inhibitory": item.inhibitory,
                     "plastic": item.plastic,
+                    "recurrent": source == target,
+                    "rendering": (
+                        "aggregate-pathway; exact edges appear only in telemetry"
+                    ),
                 }
-                for item in self.pathways
-            ],
+            )
+        return {
+            "schema": 2,
+            "circuit_version": self.config.version,
+            "neuron_count": self.neuron_count,
+            "positions": self.positions.tolist(),
+            "layout": {
+                "kind": "illustrative-annular",
+                "authority": "visual-only",
+                "distance_semantics": False,
+                "default_view": "functional-topology",
+                "notice": (
+                    "Neuron coordinates are deterministic visual scaffolding, not "
+                    "anatomical geometry or a learned spatial embedding."
+                ),
+            },
+            "regions": {
+                name: {
+                    "start": start,
+                    "end": end,
+                    "count": end - start,
+                    "role": region_roles[name],
+                }
+                for name, (start, end) in self.offsets.items()
+            },
+            "pathways": pathways,
             "time_cells": {
                 "ids": self.time_cell_ids.detach().cpu().tolist(),
                 "preferred_phase": self.time_cell_preferred_phase.detach()
@@ -555,4 +737,81 @@ class TrisynapticCircuit:
                 "width": self.time_cell_width.detach().cpu().tolist(),
                 "mechanism": "context-remapped scalar temporal receptive fields",
             },
+        }
+
+    def neuron_connectivity(self, neuron_id: int, limit: int = 256) -> dict[str, Any]:
+        """Return bounded, exact connectivity for one neuron."""
+        if not 0 <= neuron_id < self.neuron_count:
+            raise ValueError("neuron_id is outside the circuit")
+        limit = max(1, min(int(limit), 1024))
+        incoming: list[dict[str, Any]] = []
+        outgoing: list[dict[str, Any]] = []
+        incoming_total = 0
+        outgoing_total = 0
+        for pathway in self.pathways:
+            outgoing_indices = torch.nonzero(
+                pathway.pre == neuron_id, as_tuple=False
+            ).flatten()
+            incoming_indices = torch.nonzero(
+                pathway.post == neuron_id, as_tuple=False
+            ).flatten()
+            outgoing_total += int(outgoing_indices.numel())
+            incoming_total += int(incoming_indices.numel())
+            for index in outgoing_indices[: max(0, limit - len(outgoing))]:
+                position = int(index.detach().cpu().item())
+                outgoing.append(
+                    {
+                        "neuron_id": int(pathway.post[position].detach().cpu().item()),
+                        "weight": round(
+                            float(pathway.weight[position].detach().cpu().item()), 6
+                        ),
+                        "pathway": pathway.name,
+                        "inhibitory": pathway.inhibitory,
+                    }
+                )
+            for index in incoming_indices[: max(0, limit - len(incoming))]:
+                position = int(index.detach().cpu().item())
+                incoming.append(
+                    {
+                        "neuron_id": int(pathway.pre[position].detach().cpu().item()),
+                        "weight": round(
+                            float(pathway.weight[position].detach().cpu().item()), 6
+                        ),
+                        "pathway": pathway.name,
+                        "inhibitory": pathway.inhibitory,
+                    }
+                )
+        region = next(
+            name
+            for name, (start, end) in self.offsets.items()
+            if start <= neuron_id < end
+        )
+        time_cell_index = torch.nonzero(
+            self.time_cell_ids == neuron_id, as_tuple=False
+        ).flatten()
+        time_cell = None
+        if time_cell_index.numel():
+            index = int(time_cell_index[0].detach().cpu().item())
+            time_cell = {
+                "preferred_phase": round(
+                    float(self.time_cell_preferred_phase[index].detach().cpu().item()),
+                    6,
+                ),
+                "width": round(
+                    float(self.time_cell_width[index].detach().cpu().item()), 6
+                ),
+            }
+        return {
+            "schema": 1,
+            "neuron_id": neuron_id,
+            "region": region,
+            "incoming_total": incoming_total,
+            "outgoing_total": outgoing_total,
+            "incoming": incoming,
+            "outgoing": outgoing,
+            "sample_limit": limit,
+            "incoming_truncated": incoming_total > len(incoming),
+            "outgoing_truncated": outgoing_total > len(outgoing),
+            "time_cell": time_cell,
+            "connectivity": "exact bounded adjacency from the live circuit",
         }

@@ -9,7 +9,7 @@ contradictions, archives obsolete knowledge before deletion, consolidates
 episodes into reusable principles, and derives carefully gated identity
 meta-memories.
 
-Version 0.3 also represents temporal context and order, recency, source
+The fabric also represents temporal context and order, recency, source
 monitoring, autobiographical recollection metadata, event segmentation,
 context reinstatement, guarded reconsolidation, and simulated EC/CA1 time-cell
 sequences.
@@ -23,15 +23,16 @@ subsystems:
 - a 36,864-neuron GPU spiking circuit for local replay; and
 - a live WebGPU/WebGL observatory for inspecting neural activity in 3-D.
 
-It is independent of Hermes Agent. A thin optional plugin gives Hermes nine
-native memory tools without moving the lifecycle implementation into the Hermes
-repository.
+It is independent of Hermes Agent. An optional first-class memory provider gives
+Hermes bounded automatic recall across the complete fabric, while nine explicit
+tools retain inspectable control over durable changes.
 
-> **Maturity:** version 0.4.0 is an alpha research system. Its lifecycle,
+> **Maturity:** version 0.5.0 is an alpha research system. Its lifecycle,
 > migration, replay, and observability contracts are tested, but the neural
 > subsystem—the **Hippocampal Replay Engine**—is an engineering model inspired
 > by hippocampal organization, not a claim of anatomical or biological
-> equivalence.
+> equivalence. Neural efficacy must be established by the preregistered
+> evaluation; architecture alone is not evidence.
 
 ## Naming and scope
 
@@ -63,7 +64,8 @@ retained as compatibility interfaces during the transition.
 | Plasticity | Local STDP, bounded weights, homeostatic thresholds, refractory periods, and local inhibition |
 | Sleep | Exclusive-GPU encoding, NREM ripple/spindle replay, REM associative replay, foreground preemption, recordings, and hashed checkpoints |
 | Observatory | Loopback-only API, binary WebSocket telemetry, live/recorded 3-D rendering, LOD, filtering, inspection, and replay scrubbing |
-| Agent integration | Nine Hermes tools plus a desktop Obsidian observatory adapter |
+| Agent integration | First-class Hermes provider, nine tools, and a desktop Obsidian observatory adapter |
+| Evaluation | Five-condition ablation, paired confidence intervals, cost/failure telemetry, signed artifacts, and preregistered claim gates |
 
 ## Architecture
 
@@ -80,6 +82,9 @@ flowchart LR
     EN --> GPU[EC → DG → CA3 → CA1 circuit]
     GPU --> CP[Hashed checkpoint]
     GPU --> REC[HMREC recording]
+    CP --> NR[Frozen CA1 readout]
+    RT --> NR
+    NR --> H[Hermes memory provider]
 
     DB --> VS[Bounded vault synchronizer]
     EV --> VS
@@ -90,15 +95,17 @@ flowchart LR
     DB --> API
     API --> UI[WebGPU / WebGL 3-D observatory]
 
-    H[Hermes tools] --> I
+    H --> I
     H --> VC
     H --> VS
 ```
 
 SQLite is authoritative for lifecycle state. Obsidian is the inspectable,
 human-editable projection. Neural state is a third local projection linked by
-engram IDs and checkpoint hashes. The observatory can read summaries and
-telemetry, but it has no endpoint capable of changing memory lifecycle state.
+content-versioned engrams and checkpoint hashes. Its frozen readout may rerank
+the same candidates returned by symbolic retrieval; it cannot add candidates or
+mutate lifecycle state. The observatory can read summaries and telemetry, but it
+has no lifecycle-write endpoint.
 
 Every cross-layer transition remains attributable:
 
@@ -174,14 +181,17 @@ dynamics, replay schedule, GPU arbitration, and biological analogy limits.
 
 ## Live 3-D observatory
 
-The local viewer renders all 36,864 neuron positions and uses region-level
-clusters at distant zoom. It supports:
+The local viewer renders all 36,864 neuron IDs. Its default functional view
+separates the implemented regions and shows configured source→target pathways;
+the original annular coordinates remain available as an explicitly
+illustrative view and are not presented as anatomy. It supports:
 
 - WebGPU with WebGL2 fallback;
 - orbit, pan, zoom, and keyboard free-flight;
-- live active-neuron and active-synapse overlays;
+- aggregate configured-pathway arrows plus exact live active-edge overlays;
 - inhibitory-field filtering and region activity counts;
-- neuron/engram selection and provenance inspection;
+- bounded exact incoming/outgoing neuron adjacency and provenance inspection;
+- a connection matrix, visual-truth legend, and first-use guide;
 - a bounded 600-frame live backlog; and
 - local `.hmrec` playback with timeline scrubbing.
 
@@ -228,6 +238,39 @@ Validate the production circuit contract:
 See [Operations](docs/OPERATIONS.md) for the complete CLI, Windows scheduled
 tasks, default paths, verification procedures, and recovery behavior.
 
+## Reproducible evaluation
+
+Run the deterministic five-condition CI profile:
+
+```powershell
+cognitive-memory evaluate doctor
+cognitive-memory evaluate run --profile ci --output .\evaluation-ci
+cognitive-memory evaluate verify .\evaluation-ci
+```
+
+Tune only on the development split, then run the frozen holdout:
+
+```powershell
+cognitive-memory evaluate run --profile development --output .\evaluation-dev
+cognitive-memory evaluate run --profile holdout --output .\evaluation-holdout
+```
+
+CI results validate the harness but are not publication evidence. The full
+100-world, repeated-agent protocol, metrics, claim gates, private-data boundary,
+and release artifact policy are documented in
+[Evaluation and reproducibility](docs/EVALUATION.md).
+
+The first 56-world development and 56-world holdout runs are encouraging but
+not claim-sufficient: a frozen conservative neural candidate improved one
+paraphrase case in each split without harming another case, moving accuracy
+from 98.21% to 100% in development and 96.43% to 98.21% in holdout. The paired
+interval still touches zero and the preregistered three-point gate was not met.
+See [Initial evaluation results](docs/RESULTS_V0.5.md).
+
+The publication workflow includes a shell-free `evaluate agent-run` command
+that executes all 20 fixed scenarios five times per condition and can append
+the separately labeled local-model and Codex/Terra replications.
+
 ## Minimal lifecycle use
 
 ```python
@@ -265,13 +308,26 @@ cognitive-memory vault-plan --vault C:\Hermes\Knowledge
 cognitive-memory vault-sync --vault C:\Hermes\Knowledge --limit 25 --apply
 ```
 
-The Hermes adapter registers:
+Select the unified provider reversibly:
+
+```powershell
+cognitive-memory --home "$env:LOCALAPPDATA\hermes" hermes install
+cognitive-memory --home "$env:LOCALAPPDATA\hermes" hermes install --apply
+cognitive-memory --home "$env:LOCALAPPDATA\hermes" hermes doctor
+```
+
+Neural retrieval is opt-in; the installed default is lifecycle retrieval without
+replay. The Hermes adapter also registers:
 
 - `hippocampal_remember`
 - `hippocampal_query`
 - `hippocampal_evidence`
 - `hippocampal_archive`
 - `hippocampal_vault_sync`
+- `hippocampal_context`
+- `hippocampal_reactivate`
+- `hippocampal_reconsolidate`
+- `hippocampal_cognitive_status`
 
 The desktop Obsidian adapter embeds the same loopback observatory without
 granting it vault-write authority. Full contracts and migration behavior are in
@@ -288,6 +344,7 @@ granting it vault-write authority. Full contracts and migration behavior are in
 | [Observability](docs/OBSERVABILITY.md) | telemetry API, WebSocket/frame schemas, recording format, 3-D viewer |
 | [Integrations](docs/INTEGRATIONS.md) | Obsidian projection/migration and Hermes tool contracts |
 | [Operations](docs/OPERATIONS.md) | installation, CLI, scheduled tasks, validation, recovery, troubleshooting |
+| [Evaluation](docs/EVALUATION.md) | ablation conditions, metrics, preregistered gates, reproduction, and artifact policy |
 | [Security](SECURITY.md) | trust boundaries, local-only guarantees, limits, and reporting |
 | [Contributing](CONTRIBUTING.md) | development environments and required validation |
 | [Changelog](CHANGELOG.md) | release-level capability history |

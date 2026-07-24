@@ -25,6 +25,8 @@ jobs:
       - run: python -m pytest -q
       - run: ruff check src tests integrations
       - run: python -m compileall -q src integrations
+      - run: cognitive-memory evaluate run --profile ci --output "/tmp/cmf-eval-${{ github.run_id }}-${{ matrix.python-version }}"
+      - run: cognitive-memory evaluate verify "/tmp/cmf-eval-${{ github.run_id }}-${{ matrix.python-version }}"
 
   viewer:
     runs-on: ubuntu-latest
