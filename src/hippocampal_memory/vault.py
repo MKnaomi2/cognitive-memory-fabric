@@ -21,6 +21,24 @@ from .store import MemoryStore
 MANAGED_START = "<!-- hippocampal:managed:start -->"
 MANAGED_END = "<!-- hippocampal:managed:end -->"
 _UNSAFE = re.compile(r"[^a-z0-9]+")
+_TOKEN = re.compile(r"[a-z0-9][a-z0-9_-]{2,}")
+_STOP_WORDS = {
+    "and",
+    "are",
+    "for",
+    "from",
+    "has",
+    "have",
+    "into",
+    "its",
+    "that",
+    "the",
+    "their",
+    "this",
+    "was",
+    "were",
+    "with",
+}
 
 
 def _now() -> str:
@@ -76,6 +94,34 @@ class VaultMutation:
     reason: str
 
 
+@dataclass(frozen=True)
+class NeuralNoteLink:
+    """One bounded, explainable neural association projected into the vault."""
+
+    memory_id: str
+    note_path: str
+    title: str
+    score: float
+    neural_overlap: float
+    reasons: tuple[str, ...]
+
+
+def _tokens(content: str) -> set[str]:
+    return {
+        token
+        for token in _TOKEN.findall(content.lower())
+        if token not in _STOP_WORDS
+    }
+
+
+def _signature(raw: Any) -> set[int]:
+    try:
+        values = json.loads(str(raw or "[]"))
+        return {int(value) for value in values}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return set()
+
+
 class VaultProjector:
     """Render authoritative memory state without overwriting human notes."""
 
@@ -106,6 +152,7 @@ class VaultProjector:
         note_id: str,
         revision: int,
         existing_text: str = "",
+        related_notes: Iterable[NeuralNoteLink] = (),
     ) -> str:
         existing_meta, existing_body = parse_frontmatter(existing_text)
         user_body = self._human_body(existing_body)
@@ -169,6 +216,23 @@ class VaultProjector:
             if memory.get("superseded_by")
             else "- None recorded"
         )
+        neural_links = list(related_notes)
+        if neural_links:
+            rendered_links = []
+            for link in neural_links:
+                target = link.note_path.removesuffix(".md")
+                title = link.title.replace("[", "").replace("]", "").replace("|", " ")
+                reasons = "; ".join(link.reasons)
+                rendered_links.append(
+                    f"- [[{target}|{title}]] — association "
+                    f"{link.score:.3f}; neural overlap "
+                    f"{link.neural_overlap:.3f}; {reasons}"
+                )
+            relationship_text = relation + "\n\n### Neural associations\n\n" + "\n".join(
+                rendered_links
+            )
+        else:
+            relationship_text = relation + "\n\n### Neural associations\n\n- None yet"
         managed = (
             f"{MANAGED_START}\n# {fields['title']}\n\n{content}\n\n"
             f"## Provenance\n\n- {source}\n\n"
@@ -189,7 +253,7 @@ class VaultProjector:
             f"- Vividness: {float(memory.get('vividness', 0)):.3f}\n"
             f"- Source-monitoring score: "
             f"{float(memory.get('source_memory_score') or 0):.3f}\n\n"
-            f"## Relationships\n\n{relation}\n{MANAGED_END}\n"
+            f"## Relationships\n\n{relationship_text}\n{MANAGED_END}\n"
         )
         result = f"---\n{frontmatter}\n---\n\n{managed}"
         if user_body:
@@ -229,12 +293,12 @@ class VaultSynchronizer:
                 if not params:
                     return []
                 where = "WHERE f.fact_id IN (" + ",".join("?" for _ in params) + ")"
-            rows = self.store._conn.execute(
+            selected_rows = self.store._conn.execute(
                 f"""
                 SELECT f.*,
                     (SELECT COUNT(*) FROM fact_evidence e
                      WHERE e.fact_id=f.fact_id) evidence_count,
-                    b.engram_id,
+                    b.engram_id, b.ca1_signature_json,
                     (SELECT source_memory_score
                      FROM source_monitoring_assessments s
                      WHERE s.fact_id=f.fact_id
@@ -248,8 +312,22 @@ class VaultSynchronizer:
                 """,
                 params,
             ).fetchall()
+            relationship_rows = self.store._conn.execute(
+                """
+                SELECT f.fact_id,f.content,f.status,f.memory_kind,
+                       f.context_id,f.event_id,
+                       b.ca1_signature_json
+                FROM facts f JOIN engram_bindings b
+                  ON b.memory_id=CAST(f.fact_id AS TEXT)
+                WHERE f.status='active'
+                  AND b.encoding_version='content-v3'
+                  AND COALESCE(b.ca1_signature_json,'[]')!='[]'
+                ORDER BY f.fact_id
+                """
+            ).fetchall()
+        related = self._neural_links(relationship_rows)
         mutations = []
-        for row in rows:
+        for row in selected_rows:
             memory = dict(row)
             memory_id = str(memory["fact_id"])
             relative = self.projector.note_path(memory)
@@ -263,6 +341,7 @@ class VaultSynchronizer:
                 note_id=note_id,
                 revision=revision,
                 existing_text=existing,
+                related_notes=related.get(memory_id, ()),
             )
             before = _hash(existing_bytes) if existing_bytes else ""
             after = _hash(content.encode())
@@ -279,6 +358,109 @@ class VaultSynchronizer:
                     )
                 )
         return mutations
+
+    def _neural_links(
+        self,
+        rows: Iterable[Any],
+        *,
+        max_links: int = 5,
+        minimum_neural_overlap: float = 0.10,
+        minimum_score: float = 0.18,
+    ) -> dict[str, list[NeuralNoteLink]]:
+        """Derive bounded vault links from neural overlap plus corroborating context."""
+        memories: dict[str, dict[str, Any]] = {}
+        by_neuron: dict[int, list[str]] = {}
+        for row in rows:
+            memory = dict(row)
+            memory_id = str(memory["fact_id"])
+            signature = _signature(memory.get("ca1_signature_json"))
+            if not signature:
+                continue
+            memory["signature"] = signature
+            memory["tokens"] = _tokens(str(memory.get("content") or ""))
+            memory["note_path"] = self.projector.note_path(memory)
+            memories[memory_id] = memory
+            for neuron_id in signature:
+                by_neuron.setdefault(neuron_id, []).append(memory_id)
+        token_frequency: dict[str, int] = {}
+        for memory in memories.values():
+            for token in memory["tokens"]:
+                token_frequency[token] = token_frequency.get(token, 0) + 1
+        distinctive_frequency_limit = max(3, (len(memories) + 19) // 20)
+
+        intersections: dict[str, dict[str, int]] = {
+            memory_id: {} for memory_id in memories
+        }
+        for memory_ids in by_neuron.values():
+            for index, left in enumerate(memory_ids):
+                for right in memory_ids[index + 1 :]:
+                    intersections[left][right] = intersections[left].get(right, 0) + 1
+                    intersections[right][left] = intersections[right].get(left, 0) + 1
+
+        links: dict[str, list[NeuralNoteLink]] = {}
+        for memory_id, candidates in intersections.items():
+            source = memories[memory_id]
+            scored: list[NeuralNoteLink] = []
+            for candidate_id, shared_neurons in candidates.items():
+                target = memories[candidate_id]
+                neural_overlap = shared_neurons / min(
+                    len(source["signature"]), len(target["signature"])
+                )
+                if neural_overlap < minimum_neural_overlap:
+                    continue
+                shared_tokens = source["tokens"] & target["tokens"]
+                distinctive_tokens = {
+                    token
+                    for token in shared_tokens
+                    if token_frequency.get(token, 0) <= distinctive_frequency_limit
+                }
+                union = source["tokens"] | target["tokens"]
+                lexical_overlap = len(shared_tokens) / len(union) if union else 0.0
+                same_event = bool(
+                    source.get("event_id")
+                    and source.get("event_id") == target.get("event_id")
+                )
+                same_context = bool(
+                    source.get("context_id")
+                    and source.get("context_id") == target.get("context_id")
+                )
+                corroborated = (
+                    same_event
+                    or same_context
+                    or (bool(distinctive_tokens) and lexical_overlap >= 0.12)
+                )
+                if not corroborated:
+                    continue
+                score = min(
+                    1.0,
+                    0.70 * neural_overlap
+                    + 0.15 * lexical_overlap
+                    + (0.10 if same_context else 0.0)
+                    + (0.15 if same_event else 0.0),
+                )
+                if score < minimum_score:
+                    continue
+                reasons = []
+                if same_event:
+                    reasons.append("same event")
+                if same_context:
+                    reasons.append("same context")
+                if distinctive_tokens:
+                    terms = ", ".join(sorted(distinctive_tokens)[:4])
+                    reasons.append(f"shared terms: {terms}")
+                scored.append(
+                    NeuralNoteLink(
+                        memory_id=candidate_id,
+                        note_path=str(target["note_path"]),
+                        title=str(target["content"]).splitlines()[0][:120],
+                        score=score,
+                        neural_overlap=neural_overlap,
+                        reasons=tuple(reasons),
+                    )
+                )
+            scored.sort(key=lambda item: (-item.score, int(item.memory_id)))
+            links[memory_id] = scored[: max(1, min(12, int(max_links)))]
+        return links
 
     def apply(
         self,
