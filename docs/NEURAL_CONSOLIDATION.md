@@ -137,6 +137,12 @@ The checkpoint includes configuration, simulation step, voltage, adaptive
 thresholds, rate estimates, every pathway's indices/weights/flags, and bounded
 session metadata.
 
+Each pass resumes the latest compatible checkpoint only after its registered
+SHA-256 is verified. Selection prioritizes active memories without an engram,
+then legacy or incomplete bindings, before replaying already current engrams.
+The new checkpoint records its parent checkpoint ID, making cumulative sleep
+lineage explicit and allowing repeated bounded passes to backfill the corpus.
+
 ## Safety bounds
 
 - circuit configurations above 250,000 neurons are rejected;

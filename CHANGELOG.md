@@ -13,6 +13,9 @@
   latency to roughly 53 ms.
 - Wired the frozen v0.5.1 cue, weight, margin, and activation safety gate into
   the Hermes provider configuration.
+- Made neural sleep resume the latest hash-verified checkpoint and prioritize
+  unbound or legacy memories, so repeated passes accumulate learning and
+  progressively backfill the live corpus.
 
 ## 0.5.1 — 2026-07-26
 

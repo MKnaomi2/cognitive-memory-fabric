@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import hmac
+import json
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Any
 
 from .activity import foreground_active
 from .circuit import CircuitConfig, TrisynapticCircuit
+from .cognition import CognitiveMemorySystem
 from .coordination import MemoryCoordinator
 from .runtime import ExclusiveSleepWindow
 from .store import MemoryStore
@@ -28,32 +30,28 @@ class SleepConsolidator:
         state_root: str | Path | None = None,
         circuit_config: CircuitConfig | None = None,
         telemetry: TelemetryHub | None = None,
+        device: str = "cuda",
     ) -> None:
         self.store = store
         self.model = model
         self.coordinator = MemoryCoordinator(store)
+        self.cognition = CognitiveMemorySystem(store, self.coordinator)
         self.state_root = Path(
             state_root or store.db_path.parent / "neural"
         ).expanduser()
         self.config = circuit_config or CircuitConfig()
         self.telemetry = telemetry
+        self.device = device
 
-    def run_once(
-        self,
-        *,
-        max_memories: int = 8,
-        nrem_cycles: int = 80,
-        rem_cycles: int = 40,
-    ) -> dict[str, Any]:
-        """Run one preemptible NREM→REM cycle and checkpoint it locally."""
-        max_memories = max(1, min(32, int(max_memories)))
+    def _memory_rows(self, limit: int) -> list[Any]:
         with self.store._lock:
-            rows = self.store._conn.execute(
+            return self.store._conn.execute(
                 """
                 SELECT f.fact_id, f.content, f.trust_score, f.salience_score,
                        f.memory_kind, f.context_id, f.event_id, f.sequence_index,
                        b.engram_id, b.neuron_ids_json, b.encoding_version,
-                       b.content_sha256, t.memory_id time_binding_id,
+                       b.content_sha256, b.ca1_signature_json,
+                       t.memory_id time_binding_id,
                        (SELECT window_id FROM reconsolidation_windows w
                         WHERE w.fact_id=f.fact_id AND w.status='labile'
                           AND w.closes_at>CURRENT_TIMESTAMP
@@ -64,13 +62,51 @@ class SleepConsolidator:
                   ON t.memory_id=CAST(f.fact_id AS TEXT)
                 WHERE f.status='active' AND f.memory_kind IN
                     ('episode','fact','principle','identity')
-                ORDER BY (reconsolidation_window_id IS NOT NULL) DESC,
+                ORDER BY (b.memory_id IS NULL) DESC,
+                         (COALESCE(b.encoding_version,'')!='content-v3'
+                          OR COALESCE(b.content_sha256,'')=''
+                          OR COALESCE(b.ca1_signature_json,'[]')='[]') DESC,
+                         (reconsolidation_window_id IS NOT NULL) DESC,
                          f.pinned DESC, f.salience_score DESC,
                          f.updated_at DESC
                 LIMIT ?
                 """,
-                (max_memories,),
+                (limit,),
             ).fetchall()
+
+    def _load_circuit(self) -> tuple[TrisynapticCircuit, str | None]:
+        with self.store._lock:
+            row = self.store._conn.execute(
+                """
+                SELECT checkpoint_id,path,sha256 FROM neural_checkpoints
+                WHERE circuit_version=?
+                ORDER BY created_at DESC, rowid DESC LIMIT 1
+                """,
+                (self.config.version,),
+            ).fetchone()
+        if row is None:
+            return TrisynapticCircuit(self.config, device=self.device), None
+        path = Path(str(row["path"])).resolve()
+        if not path.is_file():
+            raise RuntimeError("registered neural checkpoint is missing")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if not hmac.compare_digest(digest, str(row["sha256"])):
+            raise RuntimeError("registered neural checkpoint hash mismatch")
+        return (
+            TrisynapticCircuit.from_checkpoint(path, device=self.device),
+            str(row["checkpoint_id"]),
+        )
+
+    def run_once(
+        self,
+        *,
+        max_memories: int = 8,
+        nrem_cycles: int = 80,
+        rem_cycles: int = 40,
+    ) -> dict[str, Any]:
+        """Run one preemptible NREM→REM cycle and checkpoint it locally."""
+        max_memories = max(1, min(32, int(max_memories)))
+        rows = self._memory_rows(max_memories)
         if not rows:
             return {"status": "empty", "memories": 0}
 
@@ -82,7 +118,7 @@ class SleepConsolidator:
             model=self.model,
             foreground_active=foreground_active,
         ) as lease:
-            circuit = TrisynapticCircuit(self.config, device="cuda")
+            circuit, parent_checkpoint_id = self._load_circuit()
             replayed = encoded = frames_written = 0
             with FrameRecorder(recording) as recorder:
                 for row in rows:
@@ -221,6 +257,7 @@ class SleepConsolidator:
                 {
                     "sleep_session_id": session_id,
                     "memory_count": replayed,
+                    "parent_checkpoint_id": parent_checkpoint_id,
                     "created_at": datetime.now().astimezone().isoformat(),
                 },
             )
@@ -239,7 +276,12 @@ class SleepConsolidator:
                         checkpoint["path"],
                         checkpoint["sha256"],
                         0,
-                        json.dumps({"recording": str(recording)}),
+                        json.dumps(
+                            {
+                                "recording": str(recording),
+                                "parent_checkpoint_id": parent_checkpoint_id,
+                            }
+                        ),
                     ),
                 )
             return {
@@ -250,6 +292,7 @@ class SleepConsolidator:
                 "frames": frames_written,
                 "recording": str(recording),
                 "checkpoint": checkpoint,
+                "parent_checkpoint_id": parent_checkpoint_id,
             }
 
     def _write_frames(
