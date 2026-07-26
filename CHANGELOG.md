@@ -19,6 +19,8 @@
 - Made newly encoded bindings pending until their checkpoint is registered, so
   an interrupted or size-bounded pass cannot expose checkpointless engrams as
   current.
+- Prioritized pending recovery bindings ahead of ordinary unbound memories so
+  the next bounded pass repairs interrupted work immediately.
 - Sampled recorded sleep telemetry at a bounded stride while retaining final
   frames, allowing the maximum 32-memory pass to remain within the recording
   size limit.

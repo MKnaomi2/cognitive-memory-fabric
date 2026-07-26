@@ -138,8 +138,9 @@ thresholds, rate estimates, every pathway's indices/weights/flags, and bounded
 session metadata.
 
 Each pass resumes the latest compatible checkpoint only after its registered
-SHA-256 is verified. Selection prioritizes active memories without an engram,
-then legacy or incomplete bindings, before replaying already current engrams.
+SHA-256 is verified. Selection prioritizes bindings left explicitly pending by
+an interrupted pass, then active memories without an engram, then legacy or
+incomplete bindings, before replaying already current engrams.
 The new checkpoint records its parent checkpoint ID, making cumulative sleep
 lineage explicit and allowing repeated bounded passes to backfill the corpus.
 New or repaired engrams remain marked with a session-specific pending encoding
