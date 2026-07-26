@@ -72,6 +72,7 @@ def install(home: Path, *, apply: bool = False) -> dict[str, Any]:
             "neural_activation_min": 0.7,
             "neural_service_url": "http://127.0.0.1:8767",
             "neural_shadow": True,
+            "neural_rollout_percent": 0,
         }
     )
     result = {
