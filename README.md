@@ -7,7 +7,8 @@ remembering as a governed lifecycle rather than a vector lookup. It records
 where knowledge came from, changes confidence as evidence accumulates, preserves
 contradictions, archives obsolete knowledge before deletion, consolidates
 episodes into reusable principles, and derives carefully gated identity
-meta-memories.
+meta-memories. It can also connect retrieved evidence into cited narratives
+without silently turning association or inference into fact.
 
 The fabric also represents temporal context and order, recency, source
 monitoring, autobiographical recollection metadata, event segmentation,
@@ -21,10 +22,11 @@ subsystems:
 - an append-only event and synchronization ledger;
 - a human-readable Obsidian neocortical projection;
 - a 36,864-neuron GPU spiking circuit for local replay; and
-- a live WebGPU/WebGL observatory for inspecting neural activity in 3-D.
+- a live WebGPU/WebGL observatory for inspecting neural activity in 3-D; and
+- an evidence-grounded narrative layer with governed drafts and feedback.
 
 It is independent of Hermes Agent. An optional first-class memory provider gives
-Hermes bounded automatic recall across the complete fabric, while nine explicit
+Hermes bounded automatic recall across the complete fabric, while eleven explicit
 tools retain inspectable control over durable changes.
 
 > **Maturity:** version 0.5.1 is an alpha research system. Its lifecycle,
@@ -58,13 +60,14 @@ retained as compatibility interfaces during the transition.
 | Conflict handling | Both memories retained, linked, marked conflicted, and excluded from consolidation |
 | Forgetting | Deterministic archive-first rules with pinning, grace periods, supersession lineage, and restoration |
 | Consolidation | Evidence-gated principle and identity formation with derivation links |
+| Narratives | Cited remembered claims, labeled inference and uncertainty, adaptive structure, governed draft promotion, and stale-source invalidation |
 | Coordination | Immutable events, per-aggregate revisions, idempotency, optimistic concurrency, and SHA-256 integrity |
 | Obsidian | Concept-centric notes, preserved human annotations, bounded transactional writes, rollback journals, and full-vault repair |
 | Neural circuit | 36,864 LIF neurons and 770,048 sparse synapses across EC→DG→CA3→CA1 |
 | Plasticity | Local STDP, bounded weights, homeostatic thresholds, refractory periods, and local inhibition |
 | Sleep | Exclusive-GPU encoding, NREM ripple/spindle replay, REM associative replay, foreground preemption, recordings, and hashed checkpoints |
 | Observatory | Loopback-only API, binary WebSocket telemetry, live/recorded 3-D rendering, LOD, filtering, inspection, and replay scrubbing |
-| Agent integration | First-class Hermes provider, nine tools, and a desktop Obsidian observatory adapter |
+| Agent integration | First-class Hermes provider, eleven tools, and a desktop Obsidian observatory adapter |
 | Evaluation | Five-condition ablation, paired confidence intervals, cost/failure telemetry, signed artifacts, and preregistered claim gates |
 
 ## Architecture

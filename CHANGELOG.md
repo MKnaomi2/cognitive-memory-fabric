@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Evidence-grounded narrative memory
+
+- Added adaptive narrative composition over recalled, temporal, derived,
+  conflicting, and neural-associated memories with per-claim citations.
+- Visibly separates remembered evidence from inference and uncertainty, and
+  explicitly prevents neural association from being presented as causation.
+- Added sleep-created narrative drafts, two-pass or explicit-feedback
+  promotion, stale-source invalidation, and promoted-only Obsidian projection.
+- Added Hermes narrative and feedback tools plus deterministic, privacy-safe
+  neural rollout buckets.
+- Added a 300-case local-only evidence-versus-neural narrative ablation with
+  development/validation splitting and artifact hashes.
+
 ### Production neural recall
 
 - Added a persistent authenticated loopback CUDA readout service so Hermes can

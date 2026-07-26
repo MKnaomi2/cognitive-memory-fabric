@@ -127,6 +127,32 @@ Claims are mechanical outcomes of preregistered gates. A failed gate is
 reported as “not demonstrated.” Neural replay remains opt-in, and its compute
 cost is reported separately from quality.
 
+## Private narrative evaluation
+
+Narrative effectiveness has a separate local-only harness:
+
+```powershell
+cognitive-memory evaluate narrative `
+  --database C:\path\to\isolated-memory.db `
+  --output C:\path\to\private-narrative-development `
+  --cases 300 `
+  --split development
+```
+
+The corpus covers exact, partial, paraphrase, associative, temporal,
+event-timeline, project-evolution, thematic, and source-attribution cues. Each
+case runs two conditions: evidence-only and evidence plus stored neural
+associations. The output reports source coverage, citation precision,
+unsupported claims, unlabeled inference, and the paired neural coverage delta.
+A deterministic 70/30 case-ID split keeps development and validation separate.
+Raw cases and trials are private and must not be committed.
+
+Do not advance beyond shadow mode until the 300-case run has no unsupported
+claims or unlabeled inferences, the validation split shows no material safety
+regression, and at least 20 explicit user ratings have been collected. Roll out
+neural selection in bounded stages (10%, 25%, 50%, then 100%), checking recall
+audits and feedback at every stage. Silence is never counted as approval.
+
 ## Fairness and boundaries
 
 - Every condition receives the same evidence, query, limits, and context budget.

@@ -357,6 +357,94 @@ class VaultSynchronizer:
                         "project authoritative lifecycle state",
                     )
                 )
+        mutations.extend(self._narrative_mutations())
+        return mutations
+
+    def _narrative_mutations(self) -> list[VaultMutation]:
+        """Project promoted narratives while keeping drafts out of the vault."""
+        rows = self.store._conn.execute(
+            """
+            SELECT t.*,v.summary,v.confidence,v.algorithm_version,vr.note_path
+            FROM narrative_threads t JOIN narrative_versions v
+              ON v.version_id=t.current_version_id
+            LEFT JOIN vault_registry vr
+              ON vr.memory_id=('narrative:' || t.thread_id)
+            WHERE t.status='active'
+               OR (t.status='stale' AND COALESCE(vr.note_path,'')!='')
+            ORDER BY t.updated_at
+            """
+        ).fetchall()
+        mutations: list[VaultMutation] = []
+        for row in rows:
+            thread_id = str(row["thread_id"])
+            memory_id = f"narrative:{thread_id}"
+            relative = str(row["note_path"] or "") or (
+                f"Narratives/Active/{_slug(str(row['title']))}"
+                f"--n{thread_id.replace('-', '')[:8]}.md"
+            )
+            self.coordinator.register_vault_note(memory_id, relative)
+            target = self._target(relative)
+            existing_bytes = target.read_bytes() if target.exists() else b""
+            existing = existing_bytes.decode("utf-8") if existing_bytes else ""
+            source_rows = self.store._conn.execute(
+                """
+                SELECT DISTINCT ns.fact_id,vr.note_path
+                FROM narrative_claims nc JOIN narrative_sources ns
+                  ON ns.claim_id=nc.claim_id
+                LEFT JOIN vault_registry vr
+                  ON vr.memory_id=CAST(ns.fact_id AS TEXT)
+                WHERE nc.version_id=? ORDER BY ns.fact_id
+                """,
+                (str(row["current_version_id"]),),
+            ).fetchall()
+            links = [
+                (
+                    f"- [[{str(source['note_path']).removesuffix('.md')}|"
+                    f"Memory {int(source['fact_id'])}]]"
+                    if source["note_path"]
+                    else f"- Memory `{int(source['fact_id'])}`"
+                )
+                for source in source_rows
+            ]
+            human = self.projector._human_body(parse_frontmatter(existing)[1])
+            status = str(row["status"])
+            warning = (
+                "\n> This narrative is stale because a supporting memory changed "
+                "or entered conflict. It must be revalidated before use.\n"
+                if status == "stale"
+                else ""
+            )
+            content = (
+                "---\n"
+                f"id: {_scalar(thread_id)}\n"
+                f"title: {_scalar(row['title'])}\n"
+                "kind: narrative\n"
+                f"status: {status}\n"
+                f"structure: {_scalar(row['structure'])}\n"
+                f"confidence: {float(row['confidence']):.6f}\n"
+                f"algorithm_version: {_scalar(row['algorithm_version'])}\n"
+                "---\n\n"
+                f"{MANAGED_START}\n# {row['title']}\n\n"
+                f"{warning}\n{row['summary']}\n\n## Supporting memories\n\n"
+                + ("\n".join(links) if links else "- None")
+                + f"\n{MANAGED_END}\n"
+            )
+            if human:
+                content += f"\n\n## Human notes\n\n{human}\n"
+            before = _hash(existing_bytes) if existing_bytes else ""
+            after = _hash(content.encode())
+            if before != after:
+                mutations.append(
+                    VaultMutation(
+                        "update" if existing else "create",
+                        memory_id,
+                        relative,
+                        before,
+                        after,
+                        content,
+                        "project promoted evidence-grounded narrative",
+                    )
+                )
         return mutations
 
     def _neural_links(

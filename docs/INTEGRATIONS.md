@@ -13,6 +13,7 @@ maps, annotations, and archives.
 | Fact | `Neocortex/Concepts` |
 | Principle | `Neocortex/Principles` |
 | Identity | `Neocortex/Identity` |
+| Promoted narrative | `Narratives/Active` |
 | Archived | `Archive` |
 
 Note filenames combine a normalized content slug with a stable memory suffix,
@@ -35,6 +36,10 @@ The generated body is fenced by:
 
 Text under `## Human notes` is retained across regeneration. A legacy note
 without managed markers is treated as human-authored content and retained.
+Narrative drafts remain in SQLite. Only promoted, non-stale narratives are
+newly projected, with links to every supporting memory note. If a projected
+narrative later becomes stale, its existing note is visibly marked stale and
+must be revalidated before use.
 
 ### Synchronization transaction
 
@@ -115,7 +120,7 @@ and enable `hermes-neural-observatory` in the vault's community plugin list.
 ## Hermes Agent adapter
 
 `integrations/hermes/` is deliberately thin. It imports the standalone package,
-registers a first-class `CognitiveMemoryProvider`, and retains nine tools.
+registers a first-class `CognitiveMemoryProvider`, and retains eleven tools.
 
 The provider participates in Hermes initialization, system-prompt policy,
 bounded prefetch, explicit durable-turn synchronization, and shutdown. Prefetch
@@ -151,6 +156,7 @@ memory:
   neural_margin_min: 0.0
   neural_activation_min: 0.7
   neural_shadow: true
+  neural_rollout_percent: 0
 ```
 
 If the service, token, CUDA device, or checkpoint is unavailable, the provider
@@ -158,8 +164,17 @@ fails closed to symbolic replay rather than failing the Hermes turn.
 With `neural_shadow: true`, Hermes executes the real neural readout but returns
 the symbolic order. It stores only query hashes, candidate orders, latency,
 checkpoint identity, applied weight, and fallback status in
-`neural_readout_audit`; raw queries are not retained. Set the value to `false`
-only after reviewing live shadow outcomes.
+`neural_readout_audit`; raw queries are not retained. Once the narrative
+evaluation and explicit feedback
+gates pass, `neural_shadow` may be disabled and `neural_rollout_percent` raised
+gradually. Query hashing assigns a stable rollout bucket, so the same query does
+not switch arms unpredictably.
+
+`hippocampal_narrative` composes a bounded story from retrieved memories,
+temporal/event neighbors, explicit derivations or conflicts, and qualified
+neural associations. Every claim carries source memory IDs and is visibly
+labeled remembered, inference, or uncertain. `hippocampal_narrative_feedback`
+records only an explicit helpful, unhelpful, or missing rating.
 
 Provider installation is dry-run by default and backs up `config.yaml` before
 an applied change:

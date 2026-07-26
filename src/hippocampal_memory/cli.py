@@ -28,6 +28,8 @@ from .hermes_setup import install as hermes_install
 from .hermes_setup import uninstall as hermes_uninstall
 from .engram_migration import EngramMigrator
 from .neural_service import NeuralReadoutRuntime, create_neural_readout_app
+from .narrative import NarrativeEngine
+from .narrative_evaluation import run_narrative_evaluation
 from .readout import ReadoutConfig
 
 
@@ -134,6 +136,13 @@ def _parser(*, prog: str = "cognitive-memory") -> argparse.ArgumentParser:
     evaluate_report.add_argument("run_directory", type=Path)
     evaluate_verify = evaluate_commands.add_parser("verify")
     evaluate_verify.add_argument("run_directory", type=Path)
+    evaluate_narrative = evaluate_commands.add_parser("narrative")
+    evaluate_narrative.add_argument("--database", type=Path, required=True)
+    evaluate_narrative.add_argument("--output", type=Path, required=True)
+    evaluate_narrative.add_argument("--cases", type=int, default=300)
+    evaluate_narrative.add_argument(
+        "--split", choices=["development", "validation"], default="development"
+    )
     hermes = commands.add_parser("hermes")
     hermes_commands = hermes.add_subparsers(dest="hermes_command", required=True)
     hermes_commands.add_parser("doctor")
@@ -144,6 +153,31 @@ def _parser(*, prog: str = "cognitive-memory") -> argparse.ArgumentParser:
     neural_migrate.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     neural_migrate.add_argument("--limit", type=int, default=100)
     neural_migrate.add_argument("--apply", action="store_true")
+    narrative = commands.add_parser("narrative")
+    narrative.add_argument("action", choices=["compose", "list"])
+    narrative.add_argument("--query", default="")
+    narrative.add_argument(
+        "--structure",
+        choices=[
+            "adaptive",
+            "chronological",
+            "thematic",
+            "problem-decision-outcome",
+        ],
+        default="adaptive",
+    )
+    narrative.add_argument("--max-memories", type=int, default=12)
+    narrative.add_argument(
+        "--status", choices=["draft", "active", "stale", "all"], default="active"
+    )
+    narrative.add_argument("--limit", type=int, default=20)
+    narrative_feedback = commands.add_parser("narrative-feedback")
+    narrative_feedback.add_argument(
+        "--rating", choices=["helpful", "unhelpful", "missing"], required=True
+    )
+    narrative_feedback.add_argument("--thread-id")
+    narrative_feedback.add_argument("--audit-id", type=int)
+    narrative_feedback.add_argument("--detail", default="")
     return parser
 
 
@@ -186,6 +220,13 @@ def main(
             )
         elif args.evaluate_command == "report":
             result = report_evaluation(args.run_directory)
+        elif args.evaluate_command == "narrative":
+            result = run_narrative_evaluation(
+                args.database,
+                args.output,
+                cases=args.cases,
+                split=args.split,
+            )
         else:
             result = verify_evaluation(args.run_directory)
         print(json.dumps(result, indent=2, default=str))
@@ -308,6 +349,28 @@ def main(
                 migrator.apply(args.limit)
                 if args.apply
                 else {"status": "dry-run", "count": len(plan), "memories": plan}
+            )
+        elif args.command == "narrative":
+            narratives = NarrativeEngine(engine.store)
+            result = (
+                narratives.compose(
+                    args.query,
+                    max_memories=args.max_memories,
+                    structure=args.structure,
+                )
+                if args.action == "compose"
+                else {
+                    "threads": narratives.list_threads(
+                        status=args.status, limit=args.limit
+                    )
+                }
+            )
+        elif args.command == "narrative-feedback":
+            result = NarrativeEngine(engine.store).feedback(
+                rating=args.rating,
+                thread_id=args.thread_id,
+                audit_id=args.audit_id,
+                detail=args.detail,
             )
         elif args.command in {
             "cognitive-status",

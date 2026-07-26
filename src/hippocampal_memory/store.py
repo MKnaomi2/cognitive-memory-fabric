@@ -151,6 +151,59 @@ CREATE TABLE IF NOT EXISTS hippocampus_control (
     value      TEXT NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS narrative_threads (
+    thread_id          TEXT PRIMARY KEY,
+    thread_key         TEXT NOT NULL UNIQUE,
+    title              TEXT NOT NULL,
+    structure          TEXT NOT NULL,
+    status             TEXT NOT NULL DEFAULT 'draft',
+    current_version_id TEXT,
+    support_passes     INTEGER NOT NULL DEFAULT 0,
+    helpful_count      INTEGER NOT NULL DEFAULT 0,
+    unhelpful_count    INTEGER NOT NULL DEFAULT 0,
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS narrative_versions (
+    version_id       TEXT PRIMARY KEY,
+    thread_id        TEXT NOT NULL REFERENCES narrative_threads(thread_id),
+    summary          TEXT NOT NULL,
+    confidence       REAL NOT NULL,
+    model_digest     TEXT DEFAULT '',
+    algorithm_version TEXT NOT NULL,
+    source_fingerprint TEXT NOT NULL,
+    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS narrative_claims (
+    claim_id       TEXT PRIMARY KEY,
+    version_id     TEXT NOT NULL REFERENCES narrative_versions(version_id),
+    position       INTEGER NOT NULL,
+    claim_text     TEXT NOT NULL,
+    claim_kind     TEXT NOT NULL,
+    confidence     REAL NOT NULL,
+    relation       TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS narrative_sources (
+    claim_id      TEXT NOT NULL REFERENCES narrative_claims(claim_id),
+    fact_id       INTEGER NOT NULL REFERENCES facts(fact_id),
+    support_score REAL NOT NULL,
+    relation      TEXT NOT NULL,
+    PRIMARY KEY (claim_id, fact_id)
+);
+
+CREATE TABLE IF NOT EXISTS narrative_feedback (
+    feedback_id TEXT PRIMARY KEY,
+    thread_id   TEXT REFERENCES narrative_threads(thread_id),
+    audit_id    INTEGER,
+    rating      TEXT NOT NULL,
+    detail      TEXT DEFAULT '',
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 """
 
 
@@ -330,6 +383,12 @@ class MemoryStore:
                 ON facts(context_id, event_id, sequence_index);
             CREATE INDEX IF NOT EXISTS idx_facts_event_time
                 ON facts(event_start_at, event_end_at);
+            CREATE INDEX IF NOT EXISTS idx_narrative_threads_status
+                ON narrative_threads(status, updated_at);
+            CREATE INDEX IF NOT EXISTS idx_narrative_versions_thread
+                ON narrative_versions(thread_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_narrative_sources_fact
+                ON narrative_sources(fact_id);
             CREATE INDEX IF NOT EXISTS idx_hippocampus_sessions_status
                 ON hippocampus_sessions(status, eligible_at);
             INSERT OR IGNORE INTO hippocampus_control(key, value)
