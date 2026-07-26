@@ -15,6 +15,13 @@ Set-Location viewer
 npm ci
 ```
 
+For a clean Windows engineering run, invoke
+`scripts\Invoke-EngineeringValidation.ps1` from an isolated worktree with a
+validation root and the isolated CUDA Python path. The harness refuses overlap
+with the live checkout, database, vault, recordings, checkpoints, and logs. It
+uses API port 8766 and viewer port 5173 and verifies that Hermes scheduled-task
+definitions remain unchanged.
+
 ## CLI
 
 Global options include `--home`, `--state-db`, `--model`, and `--ollama-url`.

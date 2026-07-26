@@ -46,7 +46,7 @@ export default defineConfig(async () => {
   return {
     server: {
       host: "127.0.0.1",
-      port: 3000,
+      port: Number(process.env.CMF_VIEWER_PORT ?? 3000),
       strictPort: true,
       ...(isCodexSeatbeltSandbox
         ? { watch: { useFsEvents: false, usePolling: true } }

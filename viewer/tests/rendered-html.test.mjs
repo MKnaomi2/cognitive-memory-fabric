@@ -41,16 +41,20 @@ test("server-renders the neural observatory shell", async () => {
 });
 
 test("keeps rendering, telemetry, and replay controls local", async () => {
-  const [page, observatory, packageJson] = await Promise.all([
+  const [page, observatory, origin, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/NeuralObservatory.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/observatory-origin.mjs", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /<NeuralObservatory \/>/);
   assert.match(page, /Hermes Neural Observatory/);
-  assert.match(observatory, /http:\/\/127\.0\.0\.1:8765/);
-  assert.match(observatory, /ws:\/\/127\.0\.0\.1:8765\/live/);
+  assert.match(origin, /http:\/\/127\.0\.0\.1:8765/);
+  assert.match(origin, /127\.0\.0\.1.*localhost.*\[::1\]/);
+  assert.match(origin, /parsed\.protocol !== "http:"/);
+  assert.match(observatory, /NEXT_PUBLIC_OBSERVATORY_API_ORIGIN/);
+  assert.match(observatory, /observatoryWebSocketUrl/);
   assert.match(observatory, /WebGPURenderer/);
   assert.match(observatory, /WebGLRenderer/);
   assert.match(observatory, /HMREC1\\n/);
@@ -65,5 +69,5 @@ test("keeps rendering, telemetry, and replay controls local", async () => {
   assert.match(observatory, /CA3:\s*8192/);
   assert.match(observatory, /CA1:\s*4096/);
   assert.match(packageJson, /"three":/);
-  assert.doesNotMatch(observatory, /https?:\/\/(?!127\.0\.0\.1)/);
+  assert.doesNotMatch(origin, /https?:\/\/(?!127\.0\.0\.1)/);
 });

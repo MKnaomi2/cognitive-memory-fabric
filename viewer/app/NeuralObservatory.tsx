@@ -4,6 +4,10 @@ import { decode } from "@msgpack/msgpack";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  observatoryWebSocketUrl,
+  resolveObservatoryOrigin,
+} from "./observatory-origin.mjs";
 
 type Region = "EC" | "DG" | "CA3" | "CA1";
 type ViewMode = "functional" | "illustrative";
@@ -58,7 +62,10 @@ type NeuronDetail = {
   time_cell: { preferred_phase: number; width: number } | null;
 };
 
-const API = "http://127.0.0.1:8765";
+const API = resolveObservatoryOrigin(
+  process.env.NEXT_PUBLIC_OBSERVATORY_API_ORIGIN,
+);
+const LIVE_WEBSOCKET = observatoryWebSocketUrl(API);
 const REGION_COLOR: Record<Region, number> = {
   EC: 0x44d7b6,
   DG: 0xf4c95d,
@@ -289,7 +296,7 @@ export default function NeuralObservatory() {
     if (recording !== "Live stream") return;
     const connect = () => {
       setConnection("connecting");
-      socket = new WebSocket("ws://127.0.0.1:8765/live");
+      socket = new WebSocket(LIVE_WEBSOCKET);
       socket.binaryType = "arraybuffer";
       socket.onopen = () => setConnection("live");
       socket.onmessage = (event) => {
