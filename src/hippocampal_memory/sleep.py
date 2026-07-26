@@ -31,6 +31,7 @@ class SleepConsolidator:
         circuit_config: CircuitConfig | None = None,
         telemetry: TelemetryHub | None = None,
         device: str = "cuda",
+        recording_stride: int = 4,
     ) -> None:
         self.store = store
         self.model = model
@@ -42,6 +43,7 @@ class SleepConsolidator:
         self.config = circuit_config or CircuitConfig()
         self.telemetry = telemetry
         self.device = device
+        self.recording_stride = max(1, min(32, int(recording_stride)))
 
     def _memory_rows(self, limit: int) -> list[Any]:
         with self.store._lock:
@@ -120,6 +122,7 @@ class SleepConsolidator:
         ) as lease:
             circuit, parent_checkpoint_id = self._load_circuit()
             replayed = encoded = frames_written = 0
+            pending_memory_ids: list[int] = []
             with FrameRecorder(recording) as recorder:
                 for row in rows:
                     if lease.should_preempt():
@@ -134,7 +137,13 @@ class SleepConsolidator:
                     content_hash = hashlib.sha256(
                         str(row["content"]).encode()
                     ).hexdigest()
-                    if row["neuron_ids_json"]:
+                    binding_current = (
+                        bool(row["neuron_ids_json"])
+                        and row["encoding_version"] == "content-v3"
+                        and row["content_sha256"] == content_hash
+                        and row["ca1_signature_json"] not in {None, "", "[]"}
+                    )
+                    if binding_current:
                         neurons = json.loads(row["neuron_ids_json"])
                     else:
                         result = circuit.stimulate_content(
@@ -159,10 +168,11 @@ class SleepConsolidator:
                             neurons,
                             circuit_version=self.config.version,
                             strength=float(row["trust_score"]),
-                            encoding_version="content-v3",
+                            encoding_version=f"content-v3-pending:{session_id}",
                             content_sha256=content_hash,
                             ca1_signature=result["ca1_signature"],
                         )
+                        pending_memory_ids.append(memory_id)
                         encoded += 1
                         frames_written += self._write_frames(
                             recorder, result["frames"], memory_id
@@ -284,6 +294,17 @@ class SleepConsolidator:
                         ),
                     ),
                 )
+                if pending_memory_ids:
+                    placeholders = ",".join("?" for _ in pending_memory_ids)
+                    self.store._conn.execute(
+                        f"""
+                        UPDATE engram_bindings SET encoding_version='content-v3'
+                        WHERE memory_id IN ({placeholders})
+                          AND encoding_version=?
+                        """,
+                        tuple(str(item) for item in pending_memory_ids)
+                        + (f"content-v3-pending:{session_id}",),
+                    )
             return {
                 "status": "completed",
                 "session_id": session_id,
@@ -302,7 +323,10 @@ class SleepConsolidator:
         memory_id: int,
         phase: str = "encoding",
     ) -> int:
-        for frame in frames:
+        selected = frames[:: self.recording_stride]
+        if frames and (not selected or selected[-1] is not frames[-1]):
+            selected = [*selected, frames[-1]]
+        for frame in selected:
             frame = {
                 **frame,
                 "memory_id": memory_id,
@@ -316,4 +340,4 @@ class SleepConsolidator:
             recorder.append(payload)
             if self.telemetry:
                 self.telemetry.publish_from_thread(frame)
-        return len(frames)
+        return len(selected)

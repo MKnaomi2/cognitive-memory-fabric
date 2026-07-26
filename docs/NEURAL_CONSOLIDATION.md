@@ -142,12 +142,19 @@ SHA-256 is verified. Selection prioritizes active memories without an engram,
 then legacy or incomplete bindings, before replaying already current engrams.
 The new checkpoint records its parent checkpoint ID, making cumulative sleep
 lineage explicit and allowing repeated bounded passes to backfill the corpus.
+New or repaired engrams remain marked with a session-specific pending encoding
+version until that pass registers its checkpoint. If a pass is interrupted or
+exceeds a safety bound, a later pass therefore re-encodes those memories from
+the last durable checkpoint instead of treating checkpointless state as
+current.
 
 ## Safety bounds
 
 - circuit configurations above 250,000 neurons are rejected;
 - telemetry active edges are capped at 12,000 per frame;
 - recordings default to 512 MiB maximum;
+- sleep recordings sample simulation frames at a bounded stride and always
+  retain the last frame in each encoding or replay phase;
 - individual recorded/ingested frames are capped at 16 MiB;
 - recording creation is exclusive (`xb`) to prevent silent overwrite; and
 - checkpoint files are content-hashed.

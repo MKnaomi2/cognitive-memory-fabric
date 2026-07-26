@@ -16,6 +16,12 @@
 - Made neural sleep resume the latest hash-verified checkpoint and prioritize
   unbound or legacy memories, so repeated passes accumulate learning and
   progressively backfill the live corpus.
+- Made newly encoded bindings pending until their checkpoint is registered, so
+  an interrupted or size-bounded pass cannot expose checkpointless engrams as
+  current.
+- Sampled recorded sleep telemetry at a bounded stride while retaining final
+  frames, allowing the maximum 32-memory pass to remain within the recording
+  size limit.
 
 ## 0.5.1 — 2026-07-26
 
