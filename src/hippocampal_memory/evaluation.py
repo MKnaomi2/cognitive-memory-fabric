@@ -270,6 +270,11 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _protocol_sha256(path: Path) -> str:
+    """Hash tracked text consistently across Git LF/CRLF checkouts."""
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def _git_metadata(root: Path) -> dict[str, Any]:
     def command(*args: str) -> str:
         try:
@@ -1396,7 +1401,8 @@ def run_evaluation(
             "development_neural_gates": DEVELOPMENT_NEURAL_GATES,
         },
         "protocol_artifacts": {
-            name: _sha256(path) for name, path in _protocol_artifacts(root).items()
+            name: _protocol_sha256(path)
+            for name, path in _protocol_artifacts(root).items()
         },
         "artifact_policy": {
             "public_content": "synthetic-only",
@@ -1458,7 +1464,7 @@ def verify_evaluation(output: Path) -> dict[str, Any]:
     protocol_checks = {
         name: name in available_protocol
         and available_protocol[name].exists()
-        and _sha256(available_protocol[name]) == digest
+        and _protocol_sha256(available_protocol[name]) == digest
         for name, digest in manifest.get("protocol_artifacts", {}).items()
     }
     trials = [
