@@ -157,6 +157,8 @@ memory:
   neural_activation_min: 0.7
   neural_shadow: true
   neural_rollout_percent: 0
+  capture_turns: false
+  turn_capture_max_chars: 6000
 ```
 
 If the service, token, CUDA device, or checkpoint is unavailable, the provider
@@ -175,6 +177,14 @@ temporal/event neighbors, explicit derivations or conflicts, and qualified
 neural associations. Every claim carries source memory IDs and is visibly
 labeled remembered, inference, or uncertain. `hippocampal_narrative_feedback`
 records only an explicit helpful, unhelpful, or missing rating.
+
+Completed-turn capture is local-only and opt-in. With `capture_turns: true`,
+the provider stores one bounded `episode` containing the cleaned user request
+and final assistant response. It does not persist tool transcripts, subagent or
+cron turns, trivial acknowledgements, detected credentials, or unbounded
+content. Captured episodes enter the same provenance, evidence, neural sleep,
+and archive lifecycle as explicit memories. The default remains `false` so a
+fresh installation cannot silently begin retaining ordinary conversation.
 
 Provider installation is dry-run by default and backs up `config.yaml` before
 an applied change:

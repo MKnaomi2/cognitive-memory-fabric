@@ -4,6 +4,11 @@
 
 ### Evidence-grounded narrative memory
 
+- Added opt-in, local-only completed-turn episodes so normal primary Hermes
+  sessions can feed bounded neural sleep without retaining tool transcripts,
+  subagent chatter, trivial acknowledgements, or detected credentials.
+- Increased the default bounded nightly sleep capacity from 8 to 16 memories
+  so an enabled interaction stream can converge instead of growing unchecked.
 - Added adaptive narrative composition over recalled, temporal, derived,
   conflicting, and neural-associated memories with per-claim citations.
 - Visibly separates remembered evidence from inference and uncertainty, and

@@ -3,7 +3,7 @@ param(
     [string]$Repository = 'C:\Hermes\cognitive-memory-fabric',
     [string]$HermesHome = "$env:LOCALAPPDATA\hermes",
     [string]$StateRoot = 'D:\HermesMemory\neural',
-    [int]$MaxMemories = 8
+    [int]$MaxMemories = 16
 )
 
 Set-StrictMode -Version Latest

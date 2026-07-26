@@ -176,6 +176,56 @@ def test_provider_bounds_and_marks_memory_untrusted(tmp_path):
     provider.shutdown()
 
 
+def test_provider_can_capture_bounded_primary_turn_episodes(tmp_path):
+    store = MemoryStore(tmp_path / "memory.db")
+    provider = CognitiveMemoryProvider(
+        store,
+        ProviderConfig.from_mapping(
+            {"capture_turns": True, "turn_capture_max_chars": 500}
+        ),
+    )
+    provider.initialize("session-test", agent_context="primary")
+    provider.sync_turn(
+        "Please prepare the Atlas deployment checklist and verify rollback.",
+        "I prepared the checklist and verified that rollback uses the prior image.",
+        session_id="session-test",
+        messages=[{"role": "tool", "content": "must not be captured"}],
+    )
+
+    facts = store.list_facts()
+    assert len(facts) == 1
+    episode = facts[0]
+    assert episode["memory_kind"] == "episode"
+    assert episode["context_id"] == "session:session-test"
+    assert episode["sequence_index"] == 0
+    assert "Atlas deployment checklist" in episode["content"]
+    assert "rollback uses the prior image" in episode["content"]
+    assert "must not be captured" not in episode["content"]
+    assert len(episode["content"]) <= 500
+    provenance = store._conn.execute(
+        "SELECT provenance_json FROM facts WHERE fact_id=?",
+        (episode["fact_id"],),
+    ).fetchone()
+    assert json.loads(provenance["provenance_json"])["capture_scope"] == (
+        "primary_final_turn"
+    )
+
+    provider.sync_turn("thanks", "You are welcome.", session_id="session-test")
+    provider.sync_turn(
+        "Use api_key=not-a-real-secret for this request.",
+        "I will not retain that credential.",
+        session_id="session-test",
+    )
+    provider.initialize("subagent", agent_context="subagent")
+    provider.sync_turn(
+        "Investigate a delegated implementation detail.",
+        "The delegated investigation completed.",
+        session_id="subagent",
+    )
+    assert len(store.list_facts()) == 1
+    provider.shutdown()
+
+
 def test_provider_shadow_runs_neural_but_returns_symbolic_order(tmp_path):
     store = MemoryStore(tmp_path / "memory.db")
     coordinator = MemoryCoordinator(store)
