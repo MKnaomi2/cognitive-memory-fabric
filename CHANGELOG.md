@@ -21,6 +21,8 @@
   current.
 - Prioritized pending recovery bindings ahead of ordinary unbound memories so
   the next bounded pass repairs interrupted work immediately.
+- Added bounded, explainable Obsidian links derived from CA1 signature overlap
+  and corroborated by context, events, or shared content terms.
 - Sampled recorded sleep telemetry at a bounded stride while retaining final
   frames, allowing the maximum 32-memory pass to remain within the recording
   size limit.

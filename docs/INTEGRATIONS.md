@@ -54,6 +54,13 @@ All target paths are resolved and containment-checked beneath the vault root.
 
 `VaultMigrator` separates repair from cutover.
 
+Vault projection can also turn durable neural associations into managed
+Obsidian links. Each memory note receives at most five related-note links.
+Links require CA1 signature overlap plus shared context, event, or meaningful
+content terms, unless the neural overlap is independently strong. The managed
+relationship entry includes the combined score, neural overlap, and its
+corroborating reasons; human-authored note content remains untouched.
+
 ### Staging
 
 `stage()` copies the source vault and repairs the copy. It can:

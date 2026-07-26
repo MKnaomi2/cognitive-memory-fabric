@@ -103,3 +103,90 @@ def test_vault_batch_limit_is_fail_closed(tmp_path: Path) -> None:
         synchronizer.apply(synchronizer.plan(), max_mutations=1)
     assert not (tmp_path / "vault").exists()
     store.close()
+
+
+def test_vault_projects_bounded_explainable_neural_links(tmp_path: Path) -> None:
+    store = MemoryStore(tmp_path / "memory.db")
+    coordinator = MemoryCoordinator(store)
+    atlas = coordinator.ingest(
+        "Project Atlas uses port 8765 for the local observatory.",
+        actor_type="user",
+        context_id="context:atlas",
+    )
+    service = coordinator.ingest(
+        "The Atlas observatory service listens on port 8765.",
+        actor_type="user",
+        context_id="context:atlas",
+    )
+    garden = coordinator.ingest(
+        "Garden roses need water in the morning.",
+        actor_type="user",
+        context_id="context:garden",
+    )
+    coordinator.bind_engram(
+        atlas,
+        [1, 2, 3, 4],
+        circuit_version="trisynaptic-v3-content-readout",
+        encoding_version="content-v3",
+        content_sha256="atlas",
+        ca1_signature=[101, 102, 103, 104],
+    )
+    coordinator.bind_engram(
+        service,
+        [2, 3, 4, 5],
+        circuit_version="trisynaptic-v3-content-readout",
+        encoding_version="content-v3",
+        content_sha256="service",
+        ca1_signature=[102, 103, 104, 105],
+    )
+    coordinator.bind_engram(
+        garden,
+        [7, 8, 9],
+        circuit_version="trisynaptic-v3-content-readout",
+        encoding_version="content-v3",
+        content_sha256="garden",
+        ca1_signature=[103, 201, 202],
+    )
+    synchronizer = VaultSynchronizer(store, tmp_path / "vault", coordinator)
+
+    plan = {item.memory_id: item for item in synchronizer.plan()}
+
+    service_path = synchronizer.projector.note_path(store.get_fact(service))
+    garden_path = synchronizer.projector.note_path(store.get_fact(garden))
+    assert f"[[{service_path.removesuffix('.md')}|" in plan[str(atlas)].content
+    assert f"[[{garden_path.removesuffix('.md')}|" not in plan[str(atlas)].content
+    assert "neural overlap 0.750" in plan[str(atlas)].content
+    assert "same context" in plan[str(atlas)].content
+    assert "shared terms:" in plan[str(atlas)].content
+    store.close()
+
+
+def test_vault_neural_links_are_capped_per_note(tmp_path: Path) -> None:
+    store = MemoryStore(tmp_path / "memory.db")
+    coordinator = MemoryCoordinator(store)
+    memory_ids = []
+    for index in range(8):
+        memory_id = coordinator.ingest(
+            f"Shared project concept number {index}.",
+            actor_type="user",
+            context_id="context:shared",
+        )
+        coordinator.bind_engram(
+            memory_id,
+            [index + 1],
+            circuit_version="trisynaptic-v3-content-readout",
+            encoding_version="content-v3",
+            content_sha256=str(index),
+            ca1_signature=[101, 102, 103],
+        )
+        memory_ids.append(memory_id)
+    synchronizer = VaultSynchronizer(store, tmp_path / "vault", coordinator)
+
+    first = next(
+        item
+        for item in synchronizer.plan([memory_ids[0]])
+        if item.memory_id == str(memory_ids[0])
+    )
+
+    assert first.content.count("[[") == 5
+    store.close()
