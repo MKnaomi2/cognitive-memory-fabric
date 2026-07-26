@@ -83,6 +83,9 @@ def test_hermes_install_is_dry_run_and_reversible(tmp_path):
     assert planned["after"]["neural_activation_min"] == 0.7
     assert planned["after"]["neural_service_url"] == "http://127.0.0.1:8767"
     assert planned["after"]["neural_shadow"] is True
+    assert planned["after"]["neural_rollout_percent"] == 0
+    assert planned["after"]["capture_turns"] is False
+    assert planned["after"]["turn_capture_max_chars"] == 6000
     assert not (home / "config.yaml").exists()
 
     applied = install(home, apply=True)
