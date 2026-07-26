@@ -27,7 +27,7 @@ It is independent of Hermes Agent. An optional first-class memory provider gives
 Hermes bounded automatic recall across the complete fabric, while nine explicit
 tools retain inspectable control over durable changes.
 
-> **Maturity:** version 0.5.0 is an alpha research system. Its lifecycle,
+> **Maturity:** version 0.5.1 is an alpha research system. Its lifecycle,
 > migration, replay, and observability contracts are tested, but the neural
 > subsystem—the **Hippocampal Replay Engine**—is an engineering model inspired
 > by hippocampal organization, not a claim of anatomical or biological

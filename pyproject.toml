@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cognitive-memory-fabric"
-version = "0.5.0"
+version = "0.5.1"
 description = "A local-first cognitive memory fabric for autonomous agents with provenance, temporal context, evidence-aware belief revision, reversible forgetting, Obsidian projections, and a hippocampal-inspired GPU replay engine"
 readme = "README.md"
 requires-python = ">=3.10"

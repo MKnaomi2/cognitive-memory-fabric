@@ -1,8 +1,12 @@
 # v0.5.1 Engineering Validation Status
 
-Status: Windows engineering validation passed. Release, tagging, merge, and the
-1,000-trial publication study remain out of scope. Completion also requires all
-checks on the draft pull request to pass.
+Status: Windows engineering validation passed, pull request #6 merged, and all
+post-merge `main` checks passed. This evidence supports a v0.5.1 engineering
+prerelease; it does not establish neural superiority. The preregistered
+1,000-trial publication study remains out of scope.
+
+- Validation pull request: https://github.com/MKnaomi2/cognitive-memory-fabric/pull/6
+- Post-merge CI: https://github.com/MKnaomi2/cognitive-memory-fabric/actions/runs/30189512704
 
 ## Tested revision and environment
 
