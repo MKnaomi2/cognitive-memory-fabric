@@ -64,7 +64,10 @@ class SleepConsolidator:
                   ON t.memory_id=CAST(f.fact_id AS TEXT)
                 WHERE f.status='active' AND f.memory_kind IN
                     ('episode','fact','principle','identity')
-                ORDER BY (b.memory_id IS NULL) DESC,
+                ORDER BY
+                         (COALESCE(b.encoding_version,'')
+                          LIKE 'content-v3-pending:%') DESC,
+                         (b.memory_id IS NULL) DESC,
                          (COALESCE(b.encoding_version,'')!='content-v3'
                           OR COALESCE(b.content_sha256,'')=''
                           OR COALESCE(b.ca1_signature_json,'[]')='[]') DESC,

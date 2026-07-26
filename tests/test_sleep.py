@@ -26,7 +26,7 @@ def tiny_config():
     )
 
 
-def test_sleep_prioritizes_unbound_then_legacy_memories(tmp_path):
+def test_sleep_prioritizes_pending_then_unbound_then_legacy_memories(tmp_path):
     store = MemoryStore(tmp_path / "memory.db")
     coordinator = MemoryCoordinator(store)
     current = coordinator.ingest(
@@ -43,6 +43,11 @@ def test_sleep_prioritizes_unbound_then_legacy_memories(tmp_path):
         "Low salience memory awaiting neural encoding.",
         actor_type="user",
         salience_score=0.1,
+    )
+    pending = coordinator.ingest(
+        "Interrupted encoding awaiting checkpoint recovery.",
+        actor_type="user",
+        salience_score=0.05,
     )
     coordinator.bind_engram(
         current,
@@ -62,10 +67,25 @@ def test_sleep_prioritizes_unbound_then_legacy_memories(tmp_path):
         content_sha256="",
         ca1_signature=[],
     )
+    coordinator.bind_engram(
+        pending,
+        [3],
+        circuit_version=CircuitConfig().version,
+        encoding_version="content-v3-pending:failed-session",
+        content_sha256=hashlib.sha256(
+            "Interrupted encoding awaiting checkpoint recovery.".encode()
+        ).hexdigest(),
+        ca1_signature=[11],
+    )
 
-    rows = SleepConsolidator(store, device="cpu")._memory_rows(3)
+    rows = SleepConsolidator(store, device="cpu")._memory_rows(4)
 
-    assert [int(row["fact_id"]) for row in rows] == [unbound, legacy, current]
+    assert [int(row["fact_id"]) for row in rows] == [
+        pending,
+        unbound,
+        legacy,
+        current,
+    ]
     store.close()
 
 
