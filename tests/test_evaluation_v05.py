@@ -8,6 +8,7 @@ from hippocampal_memory.evaluation import (
     diagnostic_worlds,
     deterministic_worlds,
     doctor,
+    _protocol_sha256,
     run_evaluation,
     run_agent_trials,
     verify_evaluation,
@@ -40,6 +41,10 @@ def test_diagnostic_splits_cover_independent_families_and_are_frozen():
 
 
 def test_ci_evaluation_is_complete_and_verifiable(tmp_path):
+    lf = tmp_path / "protocol-lf.json"
+    crlf = tmp_path / "protocol-crlf.json"
+    lf.write_bytes(b'{\n  "protocol": "test"\n}\n')
+    crlf.write_bytes(b'{\r\n  "protocol": "test"\r\n}\r\n')
     output = tmp_path / "run"
     result = run_evaluation(output, profile="ci", conditions=CONDITIONS)
     verification = verify_evaluation(output)
@@ -47,6 +52,7 @@ def test_ci_evaluation_is_complete_and_verifiable(tmp_path):
     summary = json.loads((output / "summary.json").read_text())
 
     assert result["status"] == "completed"
+    assert _protocol_sha256(lf) == _protocol_sha256(crlf)
     assert result["trials"] == 50
     assert verification["status"] == "verified"
     assert manifest["protocol"] == "eval-v0.5-protocol-1"

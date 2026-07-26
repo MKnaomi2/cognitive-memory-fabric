@@ -37,6 +37,7 @@ Set-Location viewer
 npm audit --audit-level=high
 npm run lint
 npm test
+npm run e2e
 ```
 
 Circuit changes additionally require `circuit-check --device cuda` on supported

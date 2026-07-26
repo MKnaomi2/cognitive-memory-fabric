@@ -303,11 +303,19 @@ def create_app(
             or not hmac.compare_digest(supplied, publisher_token)
         ):
             raise HTTPException(403, "publisher authentication failed")
-        content_length = int(request.headers.get("content-length", "0") or "0")
+        try:
+            content_length = int(request.headers.get("content-length", "0") or "0")
+        except ValueError as exc:
+            raise HTTPException(400, "invalid content length") from exc
         if content_length <= 0 or content_length > 16 * 1024 * 1024:
             raise HTTPException(413, "telemetry frame exceeds bound")
         payload = await request.body()
-        frame = msgpack.unpackb(payload, raw=False)
+        if len(payload) != content_length or len(payload) > 16 * 1024 * 1024:
+            raise HTTPException(413, "telemetry frame exceeds bound")
+        try:
+            frame = msgpack.unpackb(payload, raw=False)
+        except (ValueError, TypeError, msgpack.ExtraData) as exc:
+            raise HTTPException(400, "invalid telemetry frame") from exc
         if not isinstance(frame, dict) or "step" not in frame:
             raise HTTPException(400, "invalid telemetry frame")
         await hub.publish(frame)
