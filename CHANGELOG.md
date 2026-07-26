@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.1 — 2026-07-26
+
+### Engineering validation baseline
+
+- Added an isolated Windows RTX engineering-validation harness with strict
+  live-path overlap refusal and scheduled-task fingerprinting.
+- Added Python 3.11 neural CI requiring `48 passed, 0 skipped`, plus real
+  Observatory integration and Playwright coverage.
+- Made the viewer API origin configurable for testing while enforcing
+  loopback-only origins, and bounded telemetry and MessagePack payloads.
+- Updated viewer dependencies to a zero-vulnerability audit result.
+- Verified the 36,864-neuron, 770,048-synapse CUDA circuit, neural migration,
+  vault synchronization, bounded sleep/checkpoint integrity, and development
+  and holdout reproduction.
+- Normalized evaluation protocol hashing across LF and CRLF checkouts.
+- Observed a small directional neural lift that did not demonstrate
+  superiority. The preregistered 1,000-trial publication study is not included.
+
 ## 0.5.0 — 2026-07-23
 
 ### Evaluation and reproducibility
