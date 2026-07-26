@@ -126,11 +126,35 @@ development storage-size fields.
 - Updated vulnerable viewer dependencies; the high-severity audit gate now
   reports zero vulnerabilities.
 - Normalized tracked protocol text hashes across LF and CRLF Git checkouts,
-  with a regression assertion inside the unchanged 48-test count.
+  with a regression assertion in the then-frozen 48-test baseline.
+
+## Private narrative baseline (2026-07-26)
+
+The unreleased narrative branch was evaluated against a transactionally copied,
+isolated version of the local Hermes memory store. Raw memories and per-case
+trials remain outside the repository.
+
+- Corpus: 300 deterministic private cases, split 206 development and 94
+  validation.
+- Trials: 600 paired evidence-only and evidence-plus-neural runs.
+- Development source coverage: `0.861165`; validation: `0.858688`.
+- Citation precision: `1.0` on both splits.
+- Unsupported claims: `0`; unlabeled inferences: `0`.
+- Neural source-coverage delta: `0.0` on both splits.
+- Development manifest SHA-256:
+  `974f157f0910a23719b878543d5453d63d347bd2364a43f31ec4e1c1f1d27f84`.
+- Validation manifest SHA-256:
+  `60e703a7b8280971b554f13ad172a3cfa0f39f67216288cd268368b8f4581fc5`.
+
+This establishes citation and inference-safety behavior, but it does not
+demonstrate a neural narrative advantage. No explicit-user feedback cohort has
+yet been collected (`0/20`), so neural selection remains in shadow mode.
 
 ## Limitations
 
 - Headless Chromium lacked WebGPU and used the viewer's WebGL2 fallback.
 - The development and holdout reproductions are engineering reproducibility
   evidence, not publication evidence.
+- The first private narrative baseline showed no neural coverage gain and is
+  not publication evidence.
 - No merge, tag, release, or publication-scale study was performed.

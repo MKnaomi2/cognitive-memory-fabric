@@ -17,6 +17,7 @@ from .coordination import MemoryCoordinator
 from .runtime import ExclusiveSleepWindow
 from .store import MemoryStore
 from .telemetry import FrameRecorder, TelemetryHub
+from .narrative import NarrativeEngine
 
 
 class SleepConsolidator:
@@ -308,6 +309,7 @@ class SleepConsolidator:
                         tuple(str(item) for item in pending_memory_ids)
                         + (f"content-v3-pending:{session_id}",),
                     )
+            narratives = NarrativeEngine(self.store).consolidate_drafts(session_id)
             return {
                 "status": "completed",
                 "session_id": session_id,
@@ -317,6 +319,7 @@ class SleepConsolidator:
                 "recording": str(recording),
                 "checkpoint": checkpoint,
                 "parent_checkpoint_id": parent_checkpoint_id,
+                "narratives": narratives,
             }
 
     def _write_frames(

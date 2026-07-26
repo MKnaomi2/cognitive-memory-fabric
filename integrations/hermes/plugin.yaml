@@ -13,3 +13,5 @@ provides_tools:
   - hippocampal_reactivate
   - hippocampal_reconsolidate
   - hippocampal_cognitive_status
+  - hippocampal_narrative
+  - hippocampal_narrative_feedback

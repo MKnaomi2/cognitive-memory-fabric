@@ -233,6 +233,55 @@ def test_provider_shadow_runs_neural_but_returns_symbolic_order(tmp_path):
     provider.shutdown()
 
 
+def test_provider_neural_rollout_selects_a_deterministic_arm(tmp_path):
+    store = MemoryStore(tmp_path / "memory.db")
+    coordinator = MemoryCoordinator(store)
+    coordinator.ingest(
+        "Project Atlas uses port 9090.",
+        actor_type="user",
+        actor_ref="rollout-test",
+    )
+    provider = CognitiveMemoryProvider(
+        store,
+        ProviderConfig.from_mapping(
+            {
+                "replay_mode": "neural",
+                "neural_service_url": "http://127.0.0.1:8767",
+                "neural_rollout_percent": 0,
+            }
+        ),
+    )
+    symbolic = provider._fallback_readout.search("Atlas port")
+    neural = {
+        **symbolic,
+        "effective_mode": "neural",
+        "final_order": list(reversed(symbolic["final_order"])),
+        "memories": list(reversed(symbolic["memories"])),
+        "latency_ms": 42.0,
+        "query_diagnostics": {"applied_neural_weight": 0.05},
+    }
+
+    class StubReadout:
+        def search(self, query, **kwargs):
+            return neural
+
+    provider.readout = StubReadout()
+    block = provider.prefetch("Atlas port")
+    payload = json.loads(
+        block.removeprefix("<memory-evidence>\n").removesuffix(
+            "\n</memory-evidence>"
+        )
+    )
+    assert payload["effective_mode"] == "symbolic-rollout"
+    assert [row["memory_id"] for row in payload["entries"]] == symbolic["final_order"]
+    audit = store._conn.execute(
+        "SELECT selected_arm,rollout_bucket FROM neural_readout_audit"
+    ).fetchone()
+    assert audit["selected_arm"] == "symbolic"
+    assert 0 <= audit["rollout_bucket"] < 100
+    provider.shutdown()
+
+
 def test_engram_schema_migrates_and_persists_signature(tmp_path):
     store = MemoryStore(tmp_path / "memory.db")
     coordinator = MemoryCoordinator(store)

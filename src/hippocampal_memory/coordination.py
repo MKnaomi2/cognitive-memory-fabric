@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS neural_readout_audit (
     fallback INTEGER NOT NULL DEFAULT 0,
     error_type TEXT NOT NULL DEFAULT '',
     checkpoint_id TEXT NOT NULL DEFAULT '',
+    selected_arm TEXT NOT NULL DEFAULT 'symbolic',
+    rollout_bucket INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS time_cell_bindings (
@@ -160,6 +162,21 @@ class MemoryCoordinator:
                 if name not in columns:
                     store._conn.execute(
                         f"ALTER TABLE engram_bindings ADD COLUMN {name} {declaration}"
+                    )
+            audit_columns = {
+                row[1]
+                for row in store._conn.execute(
+                    "PRAGMA table_info(neural_readout_audit)"
+                ).fetchall()
+            }
+            for name, declaration in {
+                "selected_arm": "TEXT NOT NULL DEFAULT 'symbolic'",
+                "rollout_bucket": "INTEGER NOT NULL DEFAULT 0",
+            }.items():
+                if name not in audit_columns:
+                    store._conn.execute(
+                        f"ALTER TABLE neural_readout_audit "
+                        f"ADD COLUMN {name} {declaration}"
                     )
 
     def current_revision(self, aggregate_id: str) -> int:

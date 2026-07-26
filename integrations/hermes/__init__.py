@@ -23,6 +23,7 @@ if str(_SOURCE) not in sys.path:
 
 from hippocampal_memory.coordination import MemoryCoordinator  # noqa: E402
 from hippocampal_memory.cognition import CognitiveMemorySystem  # noqa: E402
+from hippocampal_memory.narrative import NarrativeEngine  # noqa: E402
 from hippocampal_memory.replay import HippocampusEngine  # noqa: E402
 from hippocampal_memory.vault import VaultSynchronizer  # noqa: E402
 
@@ -231,6 +232,37 @@ def _cognitive_status(args: dict, **_: Any) -> str:
     return _result({"ok": True, **result})
 
 
+def _narrative(args: dict, **_: Any) -> str:
+    engine = NarrativeEngine(_get_engine().store)
+    action = str(args.get("action") or "compose")
+    if action == "compose":
+        result = engine.compose(
+            str(args.get("query") or ""),
+            max_memories=int(args.get("max_memories") or 12),
+            structure=str(args.get("structure") or "adaptive"),
+        )
+    elif action == "list":
+        result = {
+            "threads": engine.list_threads(
+                status=str(args.get("status") or "active"),
+                limit=int(args.get("limit") or 20),
+            )
+        }
+    else:
+        return _result({"ok": False, "error": "unsupported narrative action"})
+    return _result({"ok": True, **result})
+
+
+def _narrative_feedback(args: dict, **_: Any) -> str:
+    result = NarrativeEngine(_get_engine().store).feedback(
+        rating=str(args.get("rating") or ""),
+        thread_id=str(args.get("thread_id") or "") or None,
+        audit_id=int(args["audit_id"]) if args.get("audit_id") is not None else None,
+        detail=str(args.get("detail") or ""),
+    )
+    return _result({"ok": True, **result})
+
+
 REMEMBER_SCHEMA = {
     "name": "hippocampal_remember",
     "description": "Store a durable memory with explicit provenance and confidence.",
@@ -366,6 +398,56 @@ COGNITIVE_STATUS_SCHEMA = {
         "properties": {"memory_id": {"type": "integer"}}
     }
 }
+NARRATIVE_SCHEMA = {
+    "name": "hippocampal_narrative",
+    "description": (
+        "Compose an evidence-grounded story with visibly distinct remembered "
+        "facts, inferences, uncertainties, and memory citations."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["compose", "list"]},
+            "query": {"type": "string"},
+            "structure": {
+                "type": "string",
+                "enum": [
+                    "adaptive",
+                    "chronological",
+                    "thematic",
+                    "problem-decision-outcome",
+                ],
+            },
+            "max_memories": {"type": "integer", "minimum": 3, "maximum": 20},
+            "status": {
+                "type": "string",
+                "enum": ["draft", "active", "stale", "all"],
+            },
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+        },
+        "required": ["action"],
+    },
+}
+NARRATIVE_FEEDBACK_SCHEMA = {
+    "name": "hippocampal_narrative_feedback",
+    "description": (
+        "Record only explicit user feedback about a narrative or recall result; "
+        "never infer a rating from silence."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "rating": {
+                "type": "string",
+                "enum": ["helpful", "unhelpful", "missing"],
+            },
+            "thread_id": {"type": "string"},
+            "audit_id": {"type": "integer"},
+            "detail": {"type": "string", "maxLength": 500},
+        },
+        "required": ["rating"],
+    },
+}
 
 
 def _check() -> tuple[bool, str]:
@@ -461,5 +543,12 @@ _TOOLS = (
         COGNITIVE_STATUS_SCHEMA,
         _cognitive_status,
         "🧭",
+    ),
+    ("hippocampal_narrative", NARRATIVE_SCHEMA, _narrative, "📖"),
+    (
+        "hippocampal_narrative_feedback",
+        NARRATIVE_FEEDBACK_SCHEMA,
+        _narrative_feedback,
+        "📝",
     ),
 )
