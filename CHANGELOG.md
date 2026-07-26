@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Production neural recall
+
+- Added a persistent authenticated loopback CUDA readout service so Hermes can
+  use neural reranking without installing Torch into its runtime.
+- Added hash-verified checkpoint loading/reloading, bounded symbolic fallback,
+  and privacy-preserving live shadow audits.
+- Made neural queries deterministic and non-mutating while avoiding
+  Observatory telemetry work, reducing isolated RTX steady-state service
+  latency to roughly 53 ms.
+- Wired the frozen v0.5.1 cue, weight, margin, and activation safety gate into
+  the Hermes provider configuration.
+
 ## 0.5.1 — 2026-07-26
 
 ### Engineering validation baseline

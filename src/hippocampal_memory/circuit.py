@@ -392,6 +392,71 @@ class TrisynapticCircuit:
             "frames": frames,
         }
 
+    def query_content(
+        self,
+        text: str,
+        *,
+        context_key: str = "",
+        steps: int = 24,
+        cue_mode: str = "lexical",
+        semantic_vector: list[float] | None = None,
+    ) -> dict[str, Any]:
+        """Run a non-plastic query without changing persistent circuit dynamics."""
+        tensor_names = (
+            "voltage",
+            "spikes",
+            "pre_trace",
+            "post_trace",
+            "thresholds",
+            "rate_ema",
+            "refractory",
+        )
+        tensors = {name: getattr(self, name).clone() for name in tensor_names}
+        step_index = self.step_index
+        temporal_phase = self.temporal_phase
+        try:
+            with torch.inference_mode():
+                selected = torch.as_tensor(
+                    self.content_cue(
+                        text, mode=cue_mode, semantic_vector=semantic_vector
+                    ),
+                    dtype=torch.long,
+                    device=self.device,
+                )
+                active_mask = torch.zeros(
+                    self.neuron_count, dtype=torch.bool, device=self.device
+                )
+                key = context_key or hashlib.sha256(text.encode()).hexdigest()
+                for index in range(steps):
+                    current = self.temporal_current(index, steps, context_key=key)
+                    if index < 8 or index % 11 == 0:
+                        current[selected] = 1.35
+                    self.step(current, plastic=False, emit_telemetry=False)
+                    active_mask.logical_or_(self.spikes)
+                active = torch.nonzero(active_mask, as_tuple=False).flatten()
+                ca1_start, ca1_end = self._range("CA1")
+                ca1 = active[(active >= ca1_start) & (active < ca1_end)]
+                return {
+                    "status": "completed",
+                    "steps": steps,
+                    "engram_neurons": active.detach().cpu().tolist(),
+                    "ca1_signature": ca1.detach().cpu().tolist(),
+                    "cue_mode": cue_mode,
+                    "cue_neurons": selected.detach().cpu().tolist(),
+                    "cue_size": int(selected.numel()),
+                    "region_active_neurons": {
+                        region: int(active_mask[start:end].sum().item())
+                        for region, (start, end) in self.offsets.items()
+                    },
+                    "time_cell_neurons": self.time_cell_assignment(key),
+                    "frames": [],
+                }
+        finally:
+            for name, value in tensors.items():
+                setattr(self, name, value)
+            self.step_index = step_index
+            self.temporal_phase = temporal_phase
+
     def decode_elapsed_phase(self) -> float | None:
         """Decode elapsed phase from the currently firing time-cell population."""
         active = self.spikes[self.time_cell_ids].float()
@@ -406,7 +471,8 @@ class TrisynapticCircuit:
         *,
         plastic: bool = True,
         neuromodulation: float = 1.0,
-    ) -> dict[str, Any]:
+        emit_telemetry: bool = True,
+    ) -> dict[str, Any] | None:
         """Advance one millisecond and return a bounded telemetry frame."""
         current = torch.zeros(self.neuron_count, device=self.device)
         for pathway in self.pathways:
@@ -461,6 +527,8 @@ class TrisynapticCircuit:
         ).clamp_(0.6, 1.8)
         self.spikes = next_spikes
         self.step_index += 1
+        if not emit_telemetry:
+            return None
         active = torch.nonzero(next_spikes, as_tuple=False).flatten()
         return self.telemetry(active)
 

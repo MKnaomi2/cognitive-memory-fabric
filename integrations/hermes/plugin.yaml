@@ -1,5 +1,5 @@
 name: cognitive-memory-fabric
-version: 0.5.0
+version: 0.5.1
 description: "A governed agent memory fabric with provenance, temporal cognition, evidence-aware belief revision, reversible forgetting, Obsidian projection, and hippocampal-inspired neural replay."
 author: MKnaomi2
 kind: backend

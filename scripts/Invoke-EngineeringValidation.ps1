@@ -117,7 +117,7 @@ if (-not $Torch.cuda_available) {
 
 $PytestXml = Join-Path $Root 'evidence\pytest.xml'
 Invoke-Checked $Python @('-m', 'pytest', '-q', '--junitxml', $PytestXml) (Join-Path $Root 'logs\pytest.log')
-Invoke-Checked $Python @('scripts\assert_pytest_counts.py', $PytestXml, '--expected', '48') (Join-Path $Root 'logs\pytest-counts.log')
+Invoke-Checked $Python @('scripts\assert_pytest_counts.py', $PytestXml, '--expected', '50') (Join-Path $Root 'logs\pytest-counts.log')
 Invoke-Checked $Python @('-m', 'ruff', 'check', 'src', 'tests', 'integrations', 'scripts') (Join-Path $Root 'logs\ruff.log')
 Invoke-Checked $Python @('-m', 'compileall', '-q', 'src', 'integrations', 'scripts', 'tests') (Join-Path $Root 'logs\compileall.log')
 Invoke-Checked $Python @('tests\observatory_integration.py') (Join-Path $Root 'logs\observatory-integration.log')

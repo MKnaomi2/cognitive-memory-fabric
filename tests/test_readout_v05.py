@@ -40,6 +40,30 @@ def test_content_cues_are_stable_and_share_token_cells():
     assert first & related
     assert len(first & related) > len(first & unrelated)
 
+    before = {
+        "step_index": circuit.step_index,
+        "voltage": circuit.voltage.clone(),
+        "spikes": circuit.spikes.clone(),
+        "pre_trace": circuit.pre_trace.clone(),
+        "post_trace": circuit.post_trace.clone(),
+        "thresholds": circuit.thresholds.clone(),
+        "rate_ema": circuit.rate_ema.clone(),
+        "refractory": circuit.refractory.clone(),
+    }
+    query_first = circuit.query_content("Project Atlas uses port 9090")
+    query_second = circuit.query_content("Project Atlas uses port 9090")
+    assert query_first["ca1_signature"] == query_second["ca1_signature"]
+    assert circuit.step_index == before["step_index"]
+    for name, value in before.items():
+        if name != "step_index":
+            assert getattr(circuit, name).equal(value)
+    full = circuit.stimulate_content(
+        "Project Atlas uses port 9090", steps=24, plastic=False
+    )
+    assert query_first["engram_neurons"] == full["engram_neurons"]
+    assert query_first["ca1_signature"] == full["ca1_signature"]
+    assert query_first["region_active_neurons"] == full["region_active_neurons"]
+
 
 def test_geometry_declares_visual_semantics_and_exact_connectivity():
     pytest.importorskip("torch")
@@ -121,7 +145,14 @@ def test_provider_bounds_and_marks_memory_untrusted(tmp_path):
         actor_type="web",
         actor_ref="untrusted-page",
     )
-    provider = CognitiveMemoryProvider(store, ProviderConfig(max_injected_chars=1000))
+    config = ProviderConfig.from_mapping(
+        {"max_injected_chars": 1000, "replay_mode": "neural"}
+    )
+    provider = CognitiveMemoryProvider(store, config)
+    assert provider.readout.config.cue_mode == "lexical"
+    assert provider.readout.config.neural_weight == 0.05
+    assert provider.readout.config.neural_margin_min == 0.0
+    assert provider.readout.config.neural_activation_min == 0.7
     block = provider.prefetch("Atlas port")
 
     assert "UNTRUSTED MEMORY EVIDENCE" in block
@@ -142,6 +173,63 @@ def test_provider_bounds_and_marks_memory_untrusted(tmp_path):
         {"write_origin": "user", "execution_context": "primary"},
     )
     assert len(store.list_facts()) == 2
+    provider.shutdown()
+
+
+def test_provider_shadow_runs_neural_but_returns_symbolic_order(tmp_path):
+    store = MemoryStore(tmp_path / "memory.db")
+    coordinator = MemoryCoordinator(store)
+    coordinator.ingest(
+        "Project Atlas uses port 9090.",
+        actor_type="user",
+        actor_ref="shadow-test",
+    )
+    coordinator.ingest(
+        "Project Atlas previously used port 8080.",
+        actor_type="user",
+        actor_ref="shadow-test",
+    )
+    provider = CognitiveMemoryProvider(
+        store,
+        ProviderConfig.from_mapping(
+            {
+                "replay_mode": "neural",
+                "neural_service_url": "http://127.0.0.1:8767",
+                "neural_shadow": True,
+            }
+        ),
+    )
+    symbolic = provider._fallback_readout.search("Atlas port")
+    neural = {
+        **symbolic,
+        "effective_mode": "neural",
+        "final_order": list(reversed(symbolic["final_order"])),
+        "memories": list(reversed(symbolic["memories"])),
+        "latency_ms": 42.0,
+        "query_diagnostics": {"applied_neural_weight": 0.05},
+        "service": {"checkpoint_id": "checkpoint-shadow"},
+    }
+
+    class StubReadout:
+        def search(self, query, **kwargs):
+            return neural
+
+    provider.readout = StubReadout()
+    block = provider.prefetch("Atlas port")
+    payload = json.loads(
+        block.removeprefix("<memory-evidence>\n").removesuffix(
+            "\n</memory-evidence>"
+        )
+    )
+    assert payload["effective_mode"] == "symbolic-shadow"
+    assert [row["memory_id"] for row in payload["entries"]] == symbolic["final_order"]
+    audit = store._conn.execute(
+        "SELECT * FROM neural_readout_audit"
+    ).fetchone()
+    assert audit["mode"] == "shadow"
+    assert audit["order_changed"] == 1
+    assert audit["applied_weight"] == 0.05
+    assert audit["checkpoint_id"] == "checkpoint-shadow"
     provider.shutdown()
 
 

@@ -1,4 +1,4 @@
-"""Fail CI unless the neural test job reports exactly 48 passes and no skips."""
+"""Fail CI unless the neural test job reports the expected passes and no skips."""
 
 from __future__ import annotations
 
