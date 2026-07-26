@@ -27,6 +27,8 @@ from .hermes_setup import doctor as hermes_doctor
 from .hermes_setup import install as hermes_install
 from .hermes_setup import uninstall as hermes_uninstall
 from .engram_migration import EngramMigrator
+from .neural_service import NeuralReadoutRuntime, create_neural_readout_app
+from .readout import ReadoutConfig
 
 
 def _parser(*, prog: str = "cognitive-memory") -> argparse.ArgumentParser:
@@ -56,6 +58,18 @@ def _parser(*, prog: str = "cognitive-memory") -> argparse.ArgumentParser:
         type=Path,
         default=Path(r"D:\HermesMemory\neural\recordings"),
     )
+    neural_serve = commands.add_parser("neural-serve")
+    neural_serve.add_argument("--port", type=int, default=8767)
+    neural_serve.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
+    neural_serve.add_argument("--candidate-limit", type=int, default=50)
+    neural_serve.add_argument("--recall-limit", type=int, default=10)
+    neural_serve.add_argument("--deadline-seconds", type=float, default=2.0)
+    neural_serve.add_argument(
+        "--cue-mode", choices=["lexical", "semantic", "hybrid"], default="lexical"
+    )
+    neural_serve.add_argument("--neural-weight", type=float, default=0.05)
+    neural_serve.add_argument("--neural-margin-min", type=float, default=0.0)
+    neural_serve.add_argument("--neural-activation-min", type=float, default=0.7)
     vault_plan = commands.add_parser("vault-plan")
     vault_plan.add_argument("--vault", type=Path, required=True)
     vault_sync = commands.add_parser("vault-sync")
@@ -223,6 +237,29 @@ def main(
                 publisher_token=token,
                 neuron_connectivity=circuit.neuron_connectivity,
             )
+            serve(app, port=args.port)
+            result = {"status": "stopped"}
+        elif args.command == "neural-serve":
+            token = observatory_token(
+                engine.store.db_path.parent / "runtime" / "neural-readout.token",
+                create=True,
+            )
+            assert token is not None
+            runtime = NeuralReadoutRuntime(
+                engine.store,
+                ReadoutConfig(
+                    mode="neural",
+                    candidate_limit=args.candidate_limit,
+                    recall_limit=args.recall_limit,
+                    deadline_seconds=args.deadline_seconds,
+                    cue_mode=args.cue_mode,
+                    neural_weight=args.neural_weight,
+                    neural_margin_min=args.neural_margin_min,
+                    neural_activation_min=args.neural_activation_min,
+                ),
+                device=args.device,
+            )
+            app = create_neural_readout_app(runtime, token=token)
             serve(app, port=args.port)
             result = {"status": "stopped"}
         elif args.command in {"vault-plan", "vault-sync"}:

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 from .coordination import MemoryCoordinator
 from .readout import MemoryReadout, ReadoutConfig
@@ -25,6 +26,32 @@ class ProviderConfig:
     recall_limit: int = 10
     max_injected_chars: int = 8_000
     deadline_seconds: float = 2.0
+    cue_mode: str = "lexical"
+    neural_weight: float = 0.05
+    neural_margin_min: float = 0.0
+    neural_activation_min: float = 0.70
+    neural_service_url: str = ""
+    neural_shadow: bool = False
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, Any]) -> ProviderConfig:
+        """Load Hermes values with the frozen v0.5.1 neural safety gate."""
+        return cls(
+            replay_mode=str(values.get("replay_mode", "none")),
+            candidate_limit=int(values.get("candidate_limit", 50)),
+            recall_limit=int(values.get("recall_limit", 10)),
+            max_injected_chars=int(values.get("max_injected_chars", 8_000)),
+            deadline_seconds=float(values.get("deadline_seconds", 2.0)),
+            cue_mode=str(values.get("cue_mode", "lexical")),
+            neural_weight=float(values.get("neural_weight", 0.05)),
+            neural_margin_min=float(values.get("neural_margin_min", 0.0)),
+            neural_activation_min=float(
+                values.get("neural_activation_min", 0.70)
+            ),
+            neural_service_url=str(values.get("neural_service_url", "")),
+            neural_shadow=str(values.get("neural_shadow", "false")).lower()
+            in {"1", "true", "yes", "on"},
+        )
 
 
 class CognitiveMemoryProvider(HermesMemoryProvider):
@@ -48,16 +75,36 @@ class CognitiveMemoryProvider(HermesMemoryProvider):
         self.coordinator = MemoryCoordinator(store)
         self._tool_schemas = tool_schemas or []
         self._tool_handlers = tool_handlers or {}
-        self.readout = MemoryReadout(
-            store,
-            ReadoutConfig(
-                mode=self.config.replay_mode,
-                candidate_limit=self.config.candidate_limit,
-                recall_limit=self.config.recall_limit,
-                deadline_seconds=self.config.deadline_seconds,
-            ),
-            circuit=circuit,
+        readout_config = ReadoutConfig(
+            mode=self.config.replay_mode,
+            candidate_limit=self.config.candidate_limit,
+            recall_limit=self.config.recall_limit,
+            deadline_seconds=self.config.deadline_seconds,
+            cue_mode=self.config.cue_mode,
+            neural_weight=self.config.neural_weight,
+            neural_margin_min=self.config.neural_margin_min,
+            neural_activation_min=self.config.neural_activation_min,
         )
+        if self.config.replay_mode == "neural" and self.config.neural_service_url:
+            from .neural_service import RemoteNeuralReadout
+
+            self.readout = RemoteNeuralReadout.for_store(
+                store,
+                self.config.neural_service_url,
+                timeout_seconds=self.config.deadline_seconds,
+            )
+            self._fallback_readout = MemoryReadout(
+                store,
+                ReadoutConfig(
+                    mode="symbolic",
+                    candidate_limit=self.config.candidate_limit,
+                    recall_limit=self.config.recall_limit,
+                    deadline_seconds=self.config.deadline_seconds,
+                ),
+            )
+        else:
+            self.readout = MemoryReadout(store, readout_config, circuit=circuit)
+            self._fallback_readout = None
 
     @property
     def name(self) -> str:
@@ -81,7 +128,32 @@ class CognitiveMemoryProvider(HermesMemoryProvider):
         query = str(query or kwargs.get("user_message") or kwargs.get("text") or "")
         if not query.strip():
             return ""
-        result = self.readout.search(query)
+        try:
+            neural_result = self.readout.search(query)
+        except Exception as exc:
+            if self._fallback_readout is None:
+                raise
+            result = self._fallback_readout.search(query)
+            result.update(
+                requested_mode="neural",
+                effective_mode="symbolic-fallback",
+                fallback=True,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            self._record_neural_audit(query, result, None, exc)
+        else:
+            if self.config.neural_shadow and self._fallback_readout is not None:
+                result = self._fallback_readout.search(query)
+                self._record_neural_audit(query, result, neural_result)
+                result.update(
+                    requested_mode="neural-shadow",
+                    effective_mode="symbolic-shadow",
+                    fallback=False,
+                )
+            else:
+                result = neural_result
+                if self._fallback_readout is not None:
+                    self._record_neural_audit(query, None, neural_result)
         entries = []
         used = 0
         for memory in result["memories"]:
@@ -115,6 +187,45 @@ class CognitiveMemoryProvider(HermesMemoryProvider):
         return "<memory-evidence>\n" + json.dumps(
             payload, indent=2, default=str
         ) + "\n</memory-evidence>"
+
+    def _record_neural_audit(
+        self,
+        query: str,
+        symbolic: dict[str, Any] | None,
+        neural: dict[str, Any] | None,
+        error: Exception | None = None,
+    ) -> None:
+        symbolic_order = list(
+            (symbolic or {}).get("final_order")
+            or (symbolic or {}).get("symbolic_order")
+            or []
+        )
+        neural_order = list((neural or {}).get("final_order") or [])
+        diagnostics = (neural or {}).get("query_diagnostics") or {}
+        service = (neural or {}).get("service") or {}
+        with self.store._lock:
+            self.store._conn.execute(
+                """
+                INSERT INTO neural_readout_audit (
+                    query_sha256,mode,order_changed,symbolic_order_json,
+                    neural_order_json,applied_weight,latency_ms,fallback,
+                    error_type,checkpoint_id
+                ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    hashlib.sha256(query.encode()).hexdigest(),
+                    "shadow" if self.config.neural_shadow else "active",
+                    int(bool(symbolic_order and neural_order != symbolic_order)),
+                    json.dumps(symbolic_order),
+                    json.dumps(neural_order),
+                    float(diagnostics.get("applied_neural_weight", 0.0)),
+                    float((neural or symbolic or {}).get("latency_ms", 0.0)),
+                    int(error is not None or bool((neural or {}).get("fallback"))),
+                    type(error).__name__ if error else "",
+                    str(service.get("checkpoint_id", "")),
+                ),
+            )
+            self.store._conn.commit()
 
     def queue_prefetch(self, query: str = "", *_: Any, **kwargs: Any) -> None:
         # The local index is already warm and deterministic. Avoid a redundant

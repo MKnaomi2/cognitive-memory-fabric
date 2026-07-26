@@ -78,6 +78,20 @@ CREATE TABLE IF NOT EXISTS neural_checkpoints (
     created_at TEXT NOT NULL,
     metadata_json TEXT NOT NULL DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS neural_readout_audit (
+    audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query_sha256 TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    order_changed INTEGER NOT NULL DEFAULT 0,
+    symbolic_order_json TEXT NOT NULL,
+    neural_order_json TEXT NOT NULL,
+    applied_weight REAL NOT NULL DEFAULT 0,
+    latency_ms REAL NOT NULL DEFAULT 0,
+    fallback INTEGER NOT NULL DEFAULT 0,
+    error_type TEXT NOT NULL DEFAULT '',
+    checkpoint_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS time_cell_bindings (
     memory_id TEXT PRIMARY KEY,
     context_id TEXT NOT NULL DEFAULT '',

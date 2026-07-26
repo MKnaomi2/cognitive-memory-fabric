@@ -161,6 +161,35 @@ unavailable.
 ### Sleep refuses the GPU
 
 Check foreground leases, `nvidia-smi`, another sleep worker, and Ollama release.
+
+## Neural readout service
+
+Production Hermes recall uses a thin client so Torch remains isolated in
+`.venv-neural`. Start the loopback-only service with:
+
+```powershell
+.\scripts\Run-NeuralReadout.ps1
+```
+
+The service:
+
+- listens only on `127.0.0.1:8767` with a generated bearer token;
+- verifies the registered checkpoint SHA-256 before loading it;
+- reloads a newer checkpoint registered by neural sleep;
+- runs inference without mutating checkpoint dynamics or weights; and
+- leaves Hermes on bounded symbolic fallback during service failure.
+
+Begin live rollout with `replay_mode: neural` and `neural_shadow: true`.
+Inspect aggregate rows in `neural_readout_audit` before setting
+`neural_shadow: false`; the audit stores query hashes, not query text.
+
+Verify readiness without printing the token:
+
+```powershell
+$token = Get-Content "$env:LOCALAPPDATA\hermes\runtime\neural-readout.token" -Raw
+Invoke-RestMethod http://127.0.0.1:8767/health `
+  -Headers @{ Authorization = "Bearer $($token.Trim())" }
+```
 The refusal is intentional; do not bypass it by killing foreground processes.
 
 ### Vault sync reports concurrent edit

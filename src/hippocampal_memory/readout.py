@@ -89,10 +89,9 @@ class MemoryReadout:
                 symbolic_order=symbolic_replay_order,
             )
         try:
-            query_result = self.circuit.stimulate_content(
+            query_result = self.circuit.query_content(
                 query,
                 steps=24,
-                plastic=False,
                 context_key="frozen-query",
                 cue_mode=self.config.cue_mode,
                 semantic_vector=semantic_vector,

@@ -117,6 +117,43 @@ and has a two-second deadline. Returned content is wrapped as untrusted evidence
 with provenance, confidence, validity, conflict, and supersession state.
 Recalled context and tool output are not automatically written back.
 
+Neural mode uses the frozen v0.5.1 candidate defaults: lexical cues, weight
+`0.05`, margin `0.0`, and activation threshold `0.70`. These values are written
+explicitly during provider installation and may be overridden in the Hermes
+`memory` configuration.
+
+Hermes itself does not need Torch. A persistent authenticated service runs in
+the isolated CUDA environment, loads the latest hash-verified checkpoint, and
+reloads when sleep registers a newer checkpoint:
+
+```powershell
+.\scripts\Run-NeuralReadout.ps1
+```
+
+The service binds only to `127.0.0.1:8767`. Its bearer token is generated under
+the Hermes runtime directory and is never stored in `config.yaml`. Configure
+Hermes with:
+
+```yaml
+memory:
+  provider: cognitive-memory-fabric
+  replay_mode: neural
+  neural_service_url: http://127.0.0.1:8767
+  cue_mode: lexical
+  neural_weight: 0.05
+  neural_margin_min: 0.0
+  neural_activation_min: 0.7
+  neural_shadow: true
+```
+
+If the service, token, CUDA device, or checkpoint is unavailable, the provider
+fails closed to symbolic replay rather than failing the Hermes turn.
+With `neural_shadow: true`, Hermes executes the real neural readout but returns
+the symbolic order. It stores only query hashes, candidate orders, latency,
+checkpoint identity, applied weight, and fallback status in
+`neural_readout_audit`; raw queries are not retained. Set the value to `false`
+only after reviewing live shadow outcomes.
+
 Provider installation is dry-run by default and backs up `config.yaml` before
 an applied change:
 

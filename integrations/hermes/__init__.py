@@ -392,13 +392,7 @@ def register(ctx) -> None:
         values = {}
     provider = CognitiveMemoryProvider(
         engine.store,
-        ProviderConfig(
-            replay_mode=str(values.get("replay_mode", "none")),
-            candidate_limit=int(values.get("candidate_limit", 50)),
-            recall_limit=int(values.get("recall_limit", 10)),
-            max_injected_chars=int(values.get("max_injected_chars", 8000)),
-            deadline_seconds=float(values.get("deadline_seconds", 2.0)),
-        ),
+        ProviderConfig.from_mapping(values),
         circuit=_load_circuit(engine, values),
         tool_schemas=[
             schema
@@ -426,6 +420,8 @@ def register(ctx) -> None:
 
 def _load_circuit(engine, values):
     if str(values.get("replay_mode", "none")) != "neural":
+        return None
+    if str(values.get("neural_service_url", "")).strip():
         return None
     try:
         from hippocampal_memory.circuit import TrisynapticCircuit

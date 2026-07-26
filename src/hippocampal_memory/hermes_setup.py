@@ -66,6 +66,12 @@ def install(home: Path, *, apply: bool = False) -> dict[str, Any]:
             "recall_limit": 10,
             "max_injected_chars": 8000,
             "deadline_seconds": 2.0,
+            "cue_mode": "lexical",
+            "neural_weight": 0.05,
+            "neural_margin_min": 0.0,
+            "neural_activation_min": 0.7,
+            "neural_service_url": "http://127.0.0.1:8767",
+            "neural_shadow": True,
         }
     )
     result = {
